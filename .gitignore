@@ -1,0 +1,11 @@
+.venv/
+.claude/settings.local.json
+__pycache__/
+*.pyc
+.env
+
+node_modules/
+dist/
+frontend/.vite/
+
+.DS_Store

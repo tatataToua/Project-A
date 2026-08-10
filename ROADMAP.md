@@ -1,0 +1,39 @@
+# Roadmap
+
+"Ask Me" is built in 5 phases, one per level of the AI Engineer pyramid from
+[How to Become an AI Engineer FAST (2026)](https://www.youtube.com/watch?v=aAItDrJ8-rE).
+Each phase is a real increment to the same app — by the end this is one deployed,
+instrumented AI product, not five disconnected demos. See `docs/superpowers/specs/`
+(or the original design conversation) for the full rationale behind each tech choice.
+
+- [x] **Phase 1 — SALT Foundation.** Repo scaffold, FastAPI skeleton (`/health`), Postgres
+      + pgvector via Docker Compose, Git. Condensed since you're an experienced engineer —
+      this is a checklist, not a teaching module.
+- [x] **Phase 2 — Controlled Intelligence (first slice).** `/chat` endpoint calls the OpenAI
+      API directly with a persona system prompt sourced from `docs/content/bio.md`. No
+      retrieval yet — proves basic API integration + prompt engineering.
+- [ ] **Phase 3 — Intelligent Systems.**
+  - Chunk + embed `docs/content/*.md` into Postgres via pgvector.
+  - Real RAG: retrieve relevant chunks for a question, insert into the prompt, generate.
+  - A LangGraph multi-step workflow: classify the question (about background / a specific
+    project / general advice) → retrieve → optionally call a tool → generate → self-critique.
+  - One MCP tool, e.g. `fetch_github_activity`, so the assistant can pull live, structured
+    data about your real projects instead of only static text from `projects.md`.
+- [ ] **Phase 4 — Scaling.**
+  - Dockerize the FastAPI backend (and optionally serve the built widget from it).
+  - Deploy to AWS (ECS Fargate or App Runner) with a real public URL.
+  - Embed the widget on your actual personal site.
+  - Add Redis caching for repeated/common questions to cut latency and OpenAI cost.
+- [ ] **Phase 5 — Strategic AI Operations (LLMOps).**
+  - DeepEval test suite against a golden set of Q&A about you — catches hallucinations
+    and regressions as the prompt/retrieval logic changes.
+  - PostHog (or Amplitude) analytics: what visitors ask, where they drop off.
+  - Cost governance / model routing: a cheap model (e.g. `gpt-4o-mini`) for simple
+    FAQ-style questions, escalate to a stronger model for nuanced ones, log cost per
+    conversation.
+
+## How to pick this back up
+
+Each future session should target exactly one unchecked phase above. Check the box
+when a phase's checklist is genuinely done (not just started) and update the "First
+slice" caveats in this file as they get filled out.

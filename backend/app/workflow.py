@@ -42,7 +42,10 @@ def _classify_node(state: ChatState) -> dict:
 
 
 def _retrieve_node(state: ChatState) -> dict:
-    [query_vector] = embed_texts([state["query"]])
+    search_text = state["query"]
+    if state["category"]:
+        search_text = f"[{state['category']}] {search_text}"
+    [query_vector] = embed_texts([search_text])
     chunks = retrieve_chunks(state["tenant_id"], query_vector)
     return {"chunks": chunks}
 

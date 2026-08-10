@@ -5,7 +5,7 @@ from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from app.config import EMBEDDING_DIMENSIONS
-from app.db import engine
+from app.db import check_connection, engine
 
 
 class Base(DeclarativeBase):
@@ -35,4 +35,7 @@ class EmbeddingChunk(Base):
 
 
 def create_tables() -> None:
+    # Ensure pgvector's `vector` type exists before creating tables that use it —
+    # required on a fresh database where the extension hasn't been enabled yet.
+    check_connection()
     Base.metadata.create_all(engine)

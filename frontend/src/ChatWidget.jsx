@@ -1,7 +1,5 @@
 import { useState } from "react";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
-
 export default function ChatWidget() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -16,11 +14,16 @@ export default function ChatWidget() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_URL}/chat`, {
+      const res = await fetch("/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ message: text }),
       });
+      if (res.status === 401) {
+        window.location.reload();
+        return;
+      }
       const data = await res.json();
       setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
     } catch (err) {

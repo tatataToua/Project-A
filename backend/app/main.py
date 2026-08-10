@@ -1,18 +1,30 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Depends, FastAPI
 from openai import OpenAI
 from pydantic import BaseModel
+from starlette.middleware.sessions import SessionMiddleware
 
-from app.config import CONTENT_DIR, GEMINI_API_KEY, GEMINI_BASE_URL, GEMINI_MODEL
+from app import auth
+from app.config import (
+    CONTENT_DIR,
+    GEMINI_API_KEY,
+    GEMINI_BASE_URL,
+    GEMINI_MODEL,
+    SESSION_COOKIE_SECURE,
+    SESSION_MAX_AGE_SECONDS,
+    SESSION_SECRET,
+)
 
 app = FastAPI(title="Ask Me")
 
 app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    SessionMiddleware,
+    secret_key=SESSION_SECRET,
+    max_age=SESSION_MAX_AGE_SECONDS,
+    same_site="lax",
+    https_only=SESSION_COOKIE_SECURE,
 )
+
+app.include_router(auth.router)
 
 # Gemini's free tier (no credit card, 1500 req/day) exposes an OpenAI-compatible
 # endpoint, so the OpenAI SDK works unchanged — only base_url/model/key differ.
@@ -46,7 +58,7 @@ def health() -> dict:
 
 
 @app.post("/chat", response_model=ChatResponse)
-def chat(req: ChatRequest) -> ChatResponse:
+def chat(req: ChatRequest, user: dict = Depends(auth.require_user)) -> ChatResponse:
     completion = client.chat.completions.create(
         model=GEMINI_MODEL,
         messages=[

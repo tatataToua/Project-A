@@ -2,20 +2,19 @@ import logging
 import time
 
 from fastapi import Depends, FastAPI, HTTPException
-from openai import OpenAI, OpenAIError
+from openai import OpenAIError
 from pydantic import BaseModel
+from sqlalchemy import select
 from starlette.middleware.sessions import SessionMiddleware
 
-from app import auth, ratelimit
+from app import auth, ratelimit, workflow
 from app.config import (
-    CONTENT_DIR,
-    GEMINI_API_KEY,
-    GEMINI_BASE_URL,
-    GEMINI_MODEL,
     SESSION_COOKIE_SECURE,
     SESSION_MAX_AGE_SECONDS,
     SESSION_SECRET,
 )
+from app.db import SessionLocal
+from app.models import EmbeddingChunk, Tenant
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("askme")
@@ -32,11 +31,6 @@ app.add_middleware(
 
 app.include_router(auth.router)
 
-# Gemini's free tier (no credit card, 1500 req/day) exposes an OpenAI-compatible
-# endpoint, so the OpenAI SDK works unchanged — only base_url/model/key differ.
-# Swapping to real OpenAI later is a one-line change back to OpenAI(api_key=...).
-client = OpenAI(api_key=GEMINI_API_KEY, base_url=GEMINI_BASE_URL)
-
 
 class ChatRequest(BaseModel):
     message: str
@@ -46,38 +40,36 @@ class ChatResponse(BaseModel):
     reply: str
 
 
-def build_system_prompt() -> str:
-    bio_path = CONTENT_DIR / "bio.md"
-    bio = bio_path.read_text(encoding="utf-8") if bio_path.exists() else ""
-    return (
-        "You are an AI assistant speaking on behalf of the person described below. "
-        "Answer questions about their background, skills, and experience in first person, "
-        "as if you were their professional voice. Stay grounded in the provided background "
-        "and say when something isn't covered by it.\n\n"
-        f"--- BACKGROUND ---\n{bio}"
-    )
-
-
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
 
 
-@app.post("/chat", response_model=ChatResponse)
+@app.post("/chat/{tenant_slug}", response_model=ChatResponse)
 def chat(
+    tenant_slug: str,
     req: ChatRequest,
     user: dict = Depends(auth.require_user),
     _: None = Depends(ratelimit.enforce_chat_rate_limit),
 ) -> ChatResponse:
+    session = SessionLocal()
+    try:
+        tenant = session.scalar(select(Tenant).where(Tenant.slug == tenant_slug))
+        if tenant is None:
+            raise HTTPException(status_code=404, detail="Unknown tenant.")
+
+        has_content = session.scalar(
+            select(EmbeddingChunk.id).where(EmbeddingChunk.tenant_id == tenant.id).limit(1)
+        )
+        if has_content is None:
+            return ChatResponse(reply="I don't have any information loaded yet -- check back soon.")
+        tenant_id = tenant.id
+    finally:
+        session.close()
+
     start = time.monotonic()
     try:
-        completion = client.chat.completions.create(
-            model=GEMINI_MODEL,
-            messages=[
-                {"role": "system", "content": build_system_prompt()},
-                {"role": "user", "content": req.message},
-            ],
-        )
+        answer = workflow.run_chat_workflow(tenant_id, req.message)
     except OpenAIError:
         logger.exception("Gemini request failed for user=%s", user["email"])
         raise HTTPException(
@@ -86,6 +78,6 @@ def chat(
         )
 
     logger.info(
-        "chat request user=%s elapsed=%.2fs", user["email"], time.monotonic() - start
+        "chat request user=%s tenant=%s elapsed=%.2fs", user["email"], tenant_slug, time.monotonic() - start
     )
-    return ChatResponse(reply=completion.choices[0].message.content or "")
+    return ChatResponse(reply=answer)

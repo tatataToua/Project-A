@@ -20,5 +20,8 @@ FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:5173")
 SESSION_COOKIE_SECURE = os.environ.get("SESSION_COOKIE_SECURE", "false").lower() == "true"
 SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7  # 7 days
 
+RATE_LIMIT_MAX_REQUESTS = int(os.environ.get("RATE_LIMIT_MAX_REQUESTS", "20"))
+RATE_LIMIT_WINDOW_SECONDS = int(os.environ.get("RATE_LIMIT_WINDOW_SECONDS", "60"))
+
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 CONTENT_DIR = REPO_ROOT / "docs" / "content"

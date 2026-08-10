@@ -1,9 +1,12 @@
-from fastapi import Depends, FastAPI
-from openai import OpenAI
+import logging
+import time
+
+from fastapi import Depends, FastAPI, HTTPException
+from openai import OpenAI, OpenAIError
 from pydantic import BaseModel
 from starlette.middleware.sessions import SessionMiddleware
 
-from app import auth
+from app import auth, ratelimit
 from app.config import (
     CONTENT_DIR,
     GEMINI_API_KEY,
@@ -13,6 +16,9 @@ from app.config import (
     SESSION_MAX_AGE_SECONDS,
     SESSION_SECRET,
 )
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("askme")
 
 app = FastAPI(title="Ask Me")
 
@@ -58,12 +64,28 @@ def health() -> dict:
 
 
 @app.post("/chat", response_model=ChatResponse)
-def chat(req: ChatRequest, user: dict = Depends(auth.require_user)) -> ChatResponse:
-    completion = client.chat.completions.create(
-        model=GEMINI_MODEL,
-        messages=[
-            {"role": "system", "content": build_system_prompt()},
-            {"role": "user", "content": req.message},
-        ],
+def chat(
+    req: ChatRequest,
+    user: dict = Depends(auth.require_user),
+    _: None = Depends(ratelimit.enforce_chat_rate_limit),
+) -> ChatResponse:
+    start = time.monotonic()
+    try:
+        completion = client.chat.completions.create(
+            model=GEMINI_MODEL,
+            messages=[
+                {"role": "system", "content": build_system_prompt()},
+                {"role": "user", "content": req.message},
+            ],
+        )
+    except OpenAIError:
+        logger.exception("Gemini request failed for user=%s", user["email"])
+        raise HTTPException(
+            status_code=502,
+            detail="Could not reach the assistant right now — try again shortly.",
+        )
+
+    logger.info(
+        "chat request user=%s elapsed=%.2fs", user["email"], time.monotonic() - start
     )
     return ChatResponse(reply=completion.choices[0].message.content or "")

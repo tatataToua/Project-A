@@ -25,6 +25,13 @@ export default function ChatWidget() {
         return;
       }
       const data = await res.json();
+      if (!res.ok) {
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: data.detail || "Something went wrong." },
+        ]);
+        return;
+      }
       setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
     } catch (err) {
       setMessages((prev) => [

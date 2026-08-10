@@ -6,6 +6,12 @@ Each phase is a real increment to the same app — by the end this is one deploy
 instrumented AI product, not five disconnected demos. See `docs/superpowers/specs/`
 (or the original design conversation) for the full rationale behind each tech choice.
 
+**Working hypothesis, as of 2026-08-10:** this is also being architected as a potential
+multi-tenant SaaS product (not just a personal instance), with the owner's own instance
+as tenant #1. Not validated or committed — see `BUSINESS.md` for the business rationale
+and `docs/superpowers/specs/2026-08-10-ask-me-saas-design.md` for how that changes the
+technical plan below (mainly: Phase 3 becomes tenant-aware from the start).
+
 - [x] **Phase 1 — SALT Foundation.** Repo scaffold, FastAPI skeleton (`/health`), Postgres
       + pgvector via Docker Compose, Git. Condensed since you're an experienced engineer —
       this is a checklist, not a teaching module.
@@ -17,8 +23,12 @@ instrumented AI product, not five disconnected demos. See `docs/superpowers/spec
       just a different `base_url`/key/model, so switching to real OpenAI later is a
       one-line change in `backend/app/main.py`.
 - [ ] **Phase 3 — Intelligent Systems.**
-  - Chunk + embed `docs/content/*.md` into Postgres via pgvector.
-  - Real RAG: retrieve relevant chunks for a question, insert into the prompt, generate.
+  - Chunk + embed content into Postgres via pgvector, tagged by `tenant_id` from the
+    start (content lives at `docs/content/tenants/<slug>/*.md`; the owner's own content
+    becomes tenant #1). See the SaaS design spec for the data model and why isolation
+    between tenants is treated as a correctness requirement, not a later add-on.
+  - Real RAG: retrieve relevant chunks for a question (scoped to one tenant), insert
+    into the prompt, generate.
   - A LangGraph multi-step workflow: classify the question (about background / a specific
     project / general advice) → retrieve → optionally call a tool → generate → self-critique.
   - One MCP tool, e.g. `fetch_github_activity`, so the assistant can pull live, structured

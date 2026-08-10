@@ -8,6 +8,10 @@ See `ROADMAP.md` for the full phase-by-phase plan.
 Currently implemented: Phase 1 (SALT Foundation) + first slice of Phase 2 (Controlled
 Intelligence) — a working local chat loop with no retrieval yet.
 
+This is also being explored as a potential multi-tenant SaaS product, not just a
+personal instance — see `BUSINESS.md` for the (unvalidated) business gameplan and
+`docs/superpowers/specs/2026-08-10-ask-me-saas-design.md` for the technical design.
+
 ## Setup
 
 ### 1. Fill in your content

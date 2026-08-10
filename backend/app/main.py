@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAI
 from pydantic import BaseModel
 
-from app.config import CONTENT_DIR, OPENAI_API_KEY
+from app.config import CONTENT_DIR, GEMINI_API_KEY, GEMINI_BASE_URL, GEMINI_MODEL
 
 app = FastAPI(title="Ask Me")
 
@@ -14,7 +14,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-client = OpenAI(api_key=OPENAI_API_KEY)
+# Gemini's free tier (no credit card, 1500 req/day) exposes an OpenAI-compatible
+# endpoint, so the OpenAI SDK works unchanged — only base_url/model/key differ.
+# Swapping to real OpenAI later is a one-line change back to OpenAI(api_key=...).
+client = OpenAI(api_key=GEMINI_API_KEY, base_url=GEMINI_BASE_URL)
 
 
 class ChatRequest(BaseModel):
@@ -45,7 +48,7 @@ def health() -> dict:
 @app.post("/chat", response_model=ChatResponse)
 def chat(req: ChatRequest) -> ChatResponse:
     completion = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model=GEMINI_MODEL,
         messages=[
             {"role": "system", "content": build_system_prompt()},
             {"role": "user", "content": req.message},

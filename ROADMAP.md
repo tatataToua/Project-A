@@ -9,9 +9,13 @@ instrumented AI product, not five disconnected demos. See `docs/superpowers/spec
 - [x] **Phase 1 — SALT Foundation.** Repo scaffold, FastAPI skeleton (`/health`), Postgres
       + pgvector via Docker Compose, Git. Condensed since you're an experienced engineer —
       this is a checklist, not a teaching module.
-- [x] **Phase 2 — Controlled Intelligence (first slice).** `/chat` endpoint calls the OpenAI
-      API directly with a persona system prompt sourced from `docs/content/bio.md`. No
-      retrieval yet — proves basic API integration + prompt engineering.
+- [x] **Phase 2 — Controlled Intelligence (first slice).** `/chat` endpoint calls an LLM
+      directly with a persona system prompt sourced from `docs/content/bio.md`. No
+      retrieval yet — proves basic API integration + prompt engineering. Using
+      **Gemini 2.5 Flash** (free tier, no credit card, 1500 req/day) via Google's
+      OpenAI-compatible endpoint instead of paid OpenAI — same `openai` SDK code path,
+      just a different `base_url`/key/model, so switching to real OpenAI later is a
+      one-line change in `backend/app/main.py`.
 - [ ] **Phase 3 — Intelligent Systems.**
   - Chunk + embed `docs/content/*.md` into Postgres via pgvector.
   - Real RAG: retrieve relevant chunks for a question, insert into the prompt, generate.

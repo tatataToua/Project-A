@@ -28,9 +28,14 @@ cd backend
 python -m venv .venv
 .venv\Scripts\activate        # Windows
 pip install -r requirements.txt
-cp .env.example .env          # then fill in OPENAI_API_KEY
+cp .env.example .env          # then fill in GEMINI_API_KEY
 uvicorn app.main:app --reload
 ```
+
+Get a free `GEMINI_API_KEY` (no credit card) at https://aistudio.google.com/apikey.
+The backend calls it through Gemini's OpenAI-compatible endpoint, so the code is the
+same shape it'd be for real OpenAI — swapping providers later is a one-line change
+in `backend/app/main.py`.
 
 Verify:
 

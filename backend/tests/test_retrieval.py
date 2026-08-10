@@ -63,6 +63,7 @@ def test_retrieval_never_crosses_tenants():
     tenant_a_id, tenant_b_id = _seed()
     try:
         results = retrieve_chunks(tenant_a_id, _vector(0), k=5)
+        assert len(results) == 2
         assert all("tenant A" in r for r in results)
         assert not any("tenant B" in r for r in results)
     finally:

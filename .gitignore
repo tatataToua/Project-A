@@ -9,3 +9,5 @@ dist/
 frontend/.vite/
 
 .DS_Store
+
+.worktrees/

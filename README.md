@@ -41,7 +41,8 @@ uvicorn app.main:app --reload
 Get a free `GEMINI_API_KEY` (no credit card) at https://aistudio.google.com/apikey.
 The backend calls it through Gemini's OpenAI-compatible endpoint, so the code is the
 same shape it'd be for real OpenAI — swapping providers later is a one-line change
-in `backend/app/main.py`.
+in `backend/app/llm.py` (any OpenAI-compatible endpoint works, including a local
+Ollama server).
 
 Verify:
 

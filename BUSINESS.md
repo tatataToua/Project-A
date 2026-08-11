@@ -43,8 +43,13 @@ who'd use this infrastructure to stand up a grounded, branding-focused AI assist
 (for their own portfolio, or for their clients' portfolios/personal brands). This is a
 Passion-based pick, not a cold Profession pick — it's a world you're personally
 energized by, which matters for sustaining motivation through Hormozi's Level 3 "valley
-of despair" stage. Your own "Ask Me about Toua" instance is tenant #1 / the founding
-case study, and doubles as the product demo for this exact audience.
+of despair" stage. Your own instance is intended as tenant #1 / the founding case
+study, doubling as the product demo for this exact audience. **Two Owls Tavern** (a
+fictional restaurant) currently occupies that slot instead — added as a technical test
+tenant to prove the RAG pipeline handles non-personal, business-shaped content (hours,
+menu, FAQs) correctly, not because the niche shifted toward restaurants. Niche and offer
+below are unchanged; swap in your own content and re-ingest whenever you want it back as
+the live demo.
 
 **Offer:** Infrastructure to quickly stand up a grounded (RAG-based), tenant-isolated AI
 assistant for personal/professional branding — trained on an entity's own content (bio,

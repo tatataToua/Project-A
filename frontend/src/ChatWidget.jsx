@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+const TENANT_SLUG = "toua";
+
 export default function ChatWidget() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -14,7 +16,7 @@ export default function ChatWidget() {
     setLoading(true);
 
     try {
-      const res = await fetch("/chat", {
+      const res = await fetch(`/chat/${TENANT_SLUG}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

@@ -45,10 +45,19 @@ Verify:
 
 ```bash
 curl http://localhost:8000/health
-curl -X POST http://localhost:8000/chat -H "Content-Type: application/json" -d "{\"message\": \"What is your background?\"}"
+curl -X POST http://localhost:8000/chat/toua -H "Content-Type: application/json" -d "{\"message\": \"What is your background?\"}"
 ```
 
-### 4. Frontend
+### 4. Ingest your content
+
+```bash
+cd backend
+.venv\Scripts\python.exe -m app.ingest toua
+```
+
+Re-run this any time you edit `docs/content/tenants/toua/*.md`.
+
+### 5. Frontend
 
 ```bash
 cd frontend
@@ -62,9 +71,9 @@ Open the printed local URL and chat with the widget — it talks to the backend 
 ## Project structure
 
 ```
-backend/    FastAPI app: /health, /chat
+backend/    FastAPI app: /health, /chat/{tenant_slug}
 frontend/   Vite + React embeddable chat widget
-docs/content/  Your bio/projects/resume — source material for the assistant
+docs/content/tenants/<slug>/  Your bio/projects/resume — source material for the assistant
 docker-compose.yml  Local Postgres + pgvector
 ROADMAP.md  Full 5-phase plan (this is phase 1-2)
 ```

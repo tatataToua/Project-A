@@ -16,8 +16,10 @@ personal instance — see `BUSINESS.md` for the (unvalidated) business gameplan 
 
 ### 1. Fill in your content
 
-Edit `docs/content/tenants/toua/bio.md` (used today), plus `projects.md` and `resume.md` in the same directory (used starting
-Phase 3). This is the only source of truth for what the assistant knows about you.
+Edit the markdown files in `docs/content/tenants/<slug>/` — for the demo tenant, that's
+`docs/content/tenants/two-owls-tavern/{about,menu,faq}.md`. Filenames are up to you: every
+`*.md` file in the tenant's directory is ingested. This is the only source of truth for
+what the assistant knows.
 
 ### 2. Start Postgres
 
@@ -45,17 +47,19 @@ Verify:
 
 ```bash
 curl http://localhost:8000/health
-curl -X POST http://localhost:8000/chat/toua -H "Content-Type: application/json" -d "{\"message\": \"What is your background?\"}"
 ```
+
+Chat itself can't be tested with curl — `/chat/{tenant_slug}` requires a signed-in Google
+session cookie, so try it in the browser after Step 5.
 
 ### 4. Ingest your content
 
 ```bash
 cd backend
-.venv\Scripts\python.exe -m app.ingest toua
+.venv\Scripts\python.exe -m app.ingest two-owls-tavern
 ```
 
-Re-run this any time you edit `docs/content/tenants/toua/*.md`.
+Re-run this any time you edit `docs/content/tenants/two-owls-tavern/*.md`.
 
 ### 5. Frontend
 
@@ -73,7 +77,7 @@ Open the printed local URL and chat with the widget — it talks to the backend 
 ```
 backend/    FastAPI app: /health, /chat/{tenant_slug}
 frontend/   Vite + React embeddable chat widget
-docs/content/tenants/<slug>/  Your bio/projects/resume — source material for the assistant
+docs/content/tenants/<slug>/  Your tenant's markdown content — see docs/content/tenants/two-owls-tavern/ for the demo tenant
 docker-compose.yml  Local Postgres + pgvector
 ROADMAP.md  Full 5-phase plan (this is phase 1-2)
 ```

@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-const TENANT_SLUG = "toua";
+const TENANT_SLUG = "two-owls-tavern";
 
 export default function ChatWidget() {
   const [messages, setMessages] = useState([]);

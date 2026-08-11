@@ -9,8 +9,6 @@ from app.db import SessionLocal
 from app.embeddings import embed_texts
 from app.models import EmbeddingChunk, Tenant, create_tables
 
-CONTENT_FILES = ["bio.md", "projects.md", "resume.md"]
-
 
 def tenant_content_dir(slug: str) -> Path:
     return CONTENT_DIR / "tenants" / slug
@@ -33,13 +31,13 @@ def ingest_tenant(slug: str) -> int:
         tenant = get_or_create_tenant(session, slug)
         session.execute(delete(EmbeddingChunk).where(EmbeddingChunk.tenant_id == tenant.id))
 
+        # Every markdown file directly in the tenant's directory is content — filenames
+        # vary by tenant (a person has bio/projects/resume, a restaurant has
+        # about/menu/faq). Sorted for deterministic chunk ordering across re-ingests.
         all_chunks = []
-        for filename in CONTENT_FILES:
-            file_path = content_dir / filename
-            if not file_path.exists():
-                continue
+        for file_path in sorted(content_dir.glob("*.md")):
             text = file_path.read_text(encoding="utf-8")
-            all_chunks.extend(chunk_markdown(text, filename))
+            all_chunks.extend(chunk_markdown(text, file_path.name))
 
         if not all_chunks:
             session.commit()
@@ -64,7 +62,7 @@ def ingest_tenant(slug: str) -> int:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Chunk, embed, and store a tenant's content.")
-    parser.add_argument("tenant_slug", nargs="?", default="toua")
+    parser.add_argument("tenant_slug", nargs="?", default="two-owls-tavern")
     args = parser.parse_args()
     n = ingest_tenant(args.tenant_slug)
     print(f"Ingested {n} chunks for tenant '{args.tenant_slug}'")

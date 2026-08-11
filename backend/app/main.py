@@ -5,6 +5,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from openai import OpenAIError
 from pydantic import BaseModel
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from starlette.middleware.sessions import SessionMiddleware
 
 from app import auth, ratelimit, workflow
@@ -70,8 +71,10 @@ def chat(
     start = time.monotonic()
     try:
         answer = workflow.run_chat_workflow(tenant_id, req.message)
-    except OpenAIError:
-        logger.exception("Gemini request failed for user=%s", user["email"])
+    except (OpenAIError, SQLAlchemyError):
+        # The workflow both calls the LLM and hits the database (retrieval) --
+        # either failing is an assistant failure, not a bug to leak as a raw 500.
+        logger.exception("Chat workflow failed for user=%s", user["email"])
         raise HTTPException(
             status_code=502,
             detail="Could not reach the assistant right now — try again shortly.",

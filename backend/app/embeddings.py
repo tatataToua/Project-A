@@ -1,8 +1,5 @@
-from openai import OpenAI
-
-from app.config import EMBEDDING_DIMENSIONS, GEMINI_API_KEY, GEMINI_BASE_URL, GEMINI_EMBEDDING_MODEL
-
-_client = OpenAI(api_key=GEMINI_API_KEY, base_url=GEMINI_BASE_URL)
+from app.config import EMBEDDING_DIMENSIONS, GEMINI_EMBEDDING_MODEL
+from app.llm import client as _client
 
 
 def embed_texts(texts: list[str]) -> list[list[float]]:

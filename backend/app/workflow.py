@@ -1,13 +1,12 @@
 from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
-from openai import OpenAI
+from openai import OpenAIError
 
-from app.config import GEMINI_API_KEY, GEMINI_BASE_URL, GEMINI_MODEL
+from app.config import GEMINI_MODEL
 from app.embeddings import embed_texts
+from app.llm import client as _client
 from app.retrieval import retrieve_chunks
-
-_client = OpenAI(api_key=GEMINI_API_KEY, base_url=GEMINI_BASE_URL)
 
 
 class ChatState(TypedDict):
@@ -22,19 +21,24 @@ class ChatState(TypedDict):
 
 
 def _classify_node(state: ChatState) -> dict:
-    completion = _client.chat.completions.create(
-        model=GEMINI_MODEL,
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "Classify the user's question into exactly one category: "
-                    "'background', 'project', or 'general'. Respond with only that word."
-                ),
-            },
-            {"role": "user", "content": state["question"]},
-        ],
-    )
+    try:
+        completion = _client.chat.completions.create(
+            model=GEMINI_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Classify the user's question into exactly one category: "
+                        "'background', 'project', or 'general'. Respond with only that word."
+                    ),
+                },
+                {"role": "user", "content": state["question"]},
+            ],
+        )
+    except OpenAIError:
+        # Classification only biases the retrieval query -- nothing depends on it,
+        # so degrade to the same "general" fallback used for an unusable answer.
+        return {"category": "general"}
     category = (completion.choices[0].message.content or "general").strip().lower()
     if category not in ("background", "project", "general"):
         category = "general"
@@ -74,26 +78,30 @@ def _critique_node(state: ChatState) -> dict:
     if state["retry_used"]:
         return {"needs_retry": False}
 
-    completion = _client.chat.completions.create(
-        model=GEMINI_MODEL,
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "Judge whether the ANSWER is grounded in the CONTEXT and actually "
-                    "addresses the QUESTION. Respond with only 'pass' or 'fail'."
-                ),
-            },
-            {
-                "role": "user",
-                "content": (
-                    f"QUESTION: {state['question']}\n\n"
-                    f"CONTEXT: {chr(10).join(state['chunks'])}\n\n"
-                    f"ANSWER: {state['answer']}"
-                ),
-            },
-        ],
-    )
+    try:
+        completion = _client.chat.completions.create(
+            model=GEMINI_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Judge whether the ANSWER is grounded in the CONTEXT and actually "
+                        "addresses the QUESTION. Respond with only 'pass' or 'fail'."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        f"QUESTION: {state['question']}\n\n"
+                        f"CONTEXT: {chr(10).join(state['chunks'])}\n\n"
+                        f"ANSWER: {state['answer']}"
+                    ),
+                },
+            ],
+        )
+    except OpenAIError:
+        # We already have a usable answer -- skip the retry rather than fail the request.
+        return {"needs_retry": False}
     verdict = (completion.choices[0].message.content or "pass").strip().lower()
     if verdict.startswith("fail"):
         return {

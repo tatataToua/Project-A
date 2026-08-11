@@ -16,7 +16,7 @@ technical plan below (mainly: Phase 3 becomes tenant-aware from the start).
       + pgvector via Docker Compose, Git. Condensed since you're an experienced engineer —
       this is a checklist, not a teaching module.
 - [x] **Phase 2 — Controlled Intelligence (first slice).** `/chat` endpoint calls an LLM
-      directly with a persona system prompt sourced from `docs/content/bio.md`. No
+      directly with a persona system prompt sourced from `docs/content/about.md`. No
       retrieval yet — proves basic API integration + prompt engineering. Using
       **Gemini 2.5 Flash** (free tier, no credit card, 1500 req/day) via Google's
       OpenAI-compatible endpoint instead of paid OpenAI — same `openai` SDK code path,
@@ -32,7 +32,7 @@ technical plan below (mainly: Phase 3 becomes tenant-aware from the start).
   - A LangGraph multi-step workflow: classify the question (about background / a specific
     project / general advice) → retrieve → optionally call a tool → generate → self-critique.
   - One MCP tool, e.g. `fetch_github_activity`, so the assistant can pull live, structured
-    data about your real projects instead of only static text from `projects.md`.
+    data about your real projects instead of only static text from `menu.md`.
 - [ ] **Phase 4 — Scaling.**
   - Dockerize the FastAPI backend (and optionally serve the built widget from it).
   - Deploy to AWS (ECS Fargate or App Runner) with a real public URL.

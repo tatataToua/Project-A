@@ -12,6 +12,8 @@ from app.config import (
     GEMINI_API_KEY,
     GEMINI_BASE_URL,
     GEMINI_MODEL,
+    RATE_LIMIT_MAX_REQUESTS,
+    RATE_LIMIT_WINDOW_SECONDS,
     SESSION_COOKIE_SECURE,
     SESSION_MAX_AGE_SECONDS,
     SESSION_SECRET,
@@ -38,6 +40,22 @@ app.include_router(auth.router)
 client = OpenAI(api_key=GEMINI_API_KEY, base_url=GEMINI_BASE_URL)
 
 
+@app.on_event("startup")
+def log_startup_config() -> None:
+    about_path = CONTENT_DIR / "about.md"
+    logger.info(
+        "startup config: model=%s base_url=%s api_key_set=%s content_dir=%s "
+        "about_md_found=%s rate_limit=%d/%ds",
+        GEMINI_MODEL,
+        GEMINI_BASE_URL,
+        bool(GEMINI_API_KEY),
+        CONTENT_DIR,
+        about_path.exists(),
+        RATE_LIMIT_MAX_REQUESTS,
+        RATE_LIMIT_WINDOW_SECONDS,
+    )
+
+
 class ChatRequest(BaseModel):
     message: str
 
@@ -47,14 +65,15 @@ class ChatResponse(BaseModel):
 
 
 def build_system_prompt() -> str:
-    bio_path = CONTENT_DIR / "bio.md"
-    bio = bio_path.read_text(encoding="utf-8") if bio_path.exists() else ""
+    about_path = CONTENT_DIR / "about.md"
+    about = about_path.read_text(encoding="utf-8") if about_path.exists() else ""
     return (
-        "You are an AI assistant speaking on behalf of the person described below. "
-        "Answer questions about their background, skills, and experience in first person, "
-        "as if you were their professional voice. Stay grounded in the provided background "
-        "and say when something isn't covered by it.\n\n"
-        f"--- BACKGROUND ---\n{bio}"
+        "You are an AI assistant that answers questions using only the background "
+        "information provided below. Answer in a natural voice appropriate to what's "
+        "described (e.g. first person for a person's bio, \"we\" for a business). Stay "
+        "strictly grounded in the provided background, and clearly say when a question "
+        "isn't covered by it rather than guessing.\n\n"
+        f"--- BACKGROUND ---\n{about}"
     )
 
 
@@ -70,6 +89,12 @@ def chat(
     _: None = Depends(ratelimit.enforce_chat_rate_limit),
 ) -> ChatResponse:
     start = time.monotonic()
+    logger.info(
+        "chat request user=%s model=%s message_len=%d",
+        user["email"],
+        GEMINI_MODEL,
+        len(req.message),
+    )
     try:
         completion = client.chat.completions.create(
             model=GEMINI_MODEL,
@@ -78,14 +103,28 @@ def chat(
                 {"role": "user", "content": req.message},
             ],
         )
-    except OpenAIError:
-        logger.exception("Gemini request failed for user=%s", user["email"])
+    except OpenAIError as e:
+        logger.exception(
+            "Gemini request failed user=%s model=%s elapsed=%.2fs error_type=%s",
+            user["email"],
+            GEMINI_MODEL,
+            time.monotonic() - start,
+            type(e).__name__,
+        )
         raise HTTPException(
             status_code=502,
             detail="Could not reach the assistant right now — try again shortly.",
         )
 
+    usage = completion.usage
     logger.info(
-        "chat request user=%s elapsed=%.2fs", user["email"], time.monotonic() - start
+        "chat response user=%s model=%s elapsed=%.2fs prompt_tokens=%s "
+        "completion_tokens=%s total_tokens=%s",
+        user["email"],
+        GEMINI_MODEL,
+        time.monotonic() - start,
+        usage.prompt_tokens if usage else "?",
+        usage.completion_tokens if usage else "?",
+        usage.total_tokens if usage else "?",
     )
     return ChatResponse(reply=completion.choices[0].message.content or "")

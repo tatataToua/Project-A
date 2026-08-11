@@ -90,7 +90,7 @@ or the chat widget accordingly — `ChatWidget.jsx` itself has no auth awareness
 beyond reloading the page if a `/chat` call comes back `401` (session expired
 mid-conversation).
 
-**The system prompt is built from `docs/content/bio.md` at request time**
+**The system prompt is built from `docs/content/about.md` at request time**
 (`build_system_prompt()` in `main.py`), read fresh on every `/chat` call, not
 cached or embedded — that's the point where Phase 3's RAG (chunk + embed
 `docs/content/*.md` into pgvector) will eventually plug in.
@@ -106,7 +106,7 @@ to stay a one-line change in `main.py`.
 | Var | Purpose |
 |---|---|
 | `GEMINI_API_KEY` | Free key from https://aistudio.google.com/apikey |
-| `GEMINI_MODEL` | Defaults to `gemini-2.5-flash` |
+| `GEMINI_MODEL` | Defaults to `gemini-flash-latest`; `gemini-3.1-flash-lite` is a good pin if the aliased model's free-tier quota is too tight |
 | `DATABASE_URL` | Defaults to the docker-compose Postgres |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | From a Google Cloud Console OAuth client (Web application), redirect URI `http://localhost:8000/auth/callback` |
 | `SESSION_SECRET` | Signs the session cookie — generate with `python -c "import secrets; print(secrets.token_hex(32))"` |

@@ -10,6 +10,8 @@ GEMINI_BASE_URL = os.environ.get(
     "GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai/"
 )
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-flash-latest")
+GEMINI_EMBEDDING_MODEL = os.environ.get("GEMINI_EMBEDDING_MODEL", "gemini-embedding-001")
+EMBEDDING_DIMENSIONS = int(os.environ.get("EMBEDDING_DIMENSIONS", "768"))
 
 DATABASE_URL = os.environ.get(
     "DATABASE_URL", "postgresql+psycopg://askme:askme@localhost:5432/askme"
@@ -24,6 +26,8 @@ SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7  # 7 days
 
 RATE_LIMIT_MAX_REQUESTS = int(os.environ.get("RATE_LIMIT_MAX_REQUESTS", "20"))
 RATE_LIMIT_WINDOW_SECONDS = int(os.environ.get("RATE_LIMIT_WINDOW_SECONDS", "60"))
+
+RETRIEVAL_TOP_K = int(os.environ.get("RETRIEVAL_TOP_K", "5"))
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 CONTENT_DIR = REPO_ROOT / "docs" / "content"

@@ -16,8 +16,10 @@ personal instance — see `BUSINESS.md` for the (unvalidated) business gameplan 
 
 ### 1. Fill in your content
 
-Edit `docs/content/about.md` (used today), plus `menu.md` and `faq.md` (used starting
-Phase 3). This is the only source of truth for what the assistant knows about you.
+Edit the markdown files in `docs/content/tenants/<slug>/` — for the demo tenant, that's
+`docs/content/tenants/two-owls-tavern/{about,menu,faq}.md`. Filenames are up to you: every
+`*.md` file in the tenant's directory is ingested. This is the only source of truth for
+what the assistant knows.
 
 ### 2. Start Postgres
 
@@ -39,16 +41,28 @@ uvicorn app.main:app --reload
 Get a free `GEMINI_API_KEY` (no credit card) at https://aistudio.google.com/apikey.
 The backend calls it through Gemini's OpenAI-compatible endpoint, so the code is the
 same shape it'd be for real OpenAI — swapping providers later is a one-line change
-in `backend/app/main.py`.
+in `backend/app/llm.py` (any OpenAI-compatible endpoint works, including a local
+Ollama server).
 
 Verify:
 
 ```bash
 curl http://localhost:8000/health
-curl -X POST http://localhost:8000/chat -H "Content-Type: application/json" -d "{\"message\": \"What is your background?\"}"
 ```
 
-### 4. Frontend
+Chat itself can't be tested with curl — `/chat/{tenant_slug}` requires a signed-in Google
+session cookie, so try it in the browser after Step 5.
+
+### 4. Ingest your content
+
+```bash
+cd backend
+.venv\Scripts\python.exe -m app.ingest two-owls-tavern
+```
+
+Re-run this any time you edit `docs/content/tenants/two-owls-tavern/*.md`.
+
+### 5. Frontend
 
 ```bash
 cd frontend
@@ -62,9 +76,9 @@ Open the printed local URL and chat with the widget — it talks to the backend 
 ## Project structure
 
 ```
-backend/    FastAPI app: /health, /chat
+backend/    FastAPI app: /health, /chat/{tenant_slug}
 frontend/   Vite + React embeddable chat widget
-docs/content/  Your bio/projects/resume — source material for the assistant
+docs/content/tenants/<slug>/  Your tenant's markdown content — see docs/content/tenants/two-owls-tavern/ for the demo tenant
 docker-compose.yml  Local Postgres + pgvector
 ROADMAP.md  Full 5-phase plan (this is phase 1-2)
 ```

@@ -4,15 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-"Ask Me" is an AI assistant that answers questions about the site owner (background,
-skills, projects), grounded in their own content. It's built in 5 phases mapping to
-the "AI Engineer pyramid" (see `ROADMAP.md` for the full plan and current phase status).
-It's also a portfolio piece — the code is expected to reflect real industry practice
-(e.g. the Google OAuth login flow), not shortcuts, since it's meant to be shown to
-employers.
+"Ask Me" is a tenant-scoped AI assistant that answers questions grounded in a tenant's
+own content — originally a single person's background, now generalized to any entity's
+content (the current demo tenant, **Two Owls Tavern**, is a fictional restaurant; see
+`docs/content/tenants/two-owls-tavern/`). It's built in 5 phases mapping to the "AI
+Engineer pyramid" (see `ROADMAP.md` for the full plan and current phase status). It's
+also a portfolio piece — the code is expected to reflect real industry practice (e.g.
+the Google OAuth login flow, per-tenant data isolation), not shortcuts, since it's meant
+to be shown to employers. It's also being explored, unvalidated, as a multi-tenant SaaS
+product — see `BUSINESS.md` and `docs/superpowers/specs/2026-08-10-ask-me-saas-design.md`.
 
-Currently implemented: Phase 1 (SALT Foundation), Phase 2 (Controlled Intelligence),
-Phase 3 (RAG + LangGraph — tenant-scoped retrieval over pgvector behind a
+Currently implemented: Phase 1 (SALT Foundation), Phase 2 (Controlled Intelligence,
+superseded), Phase 3 (RAG + LangGraph — tenant-scoped retrieval over pgvector behind a
 `POST /chat/{tenant_slug}` endpoint), and Google OAuth login gating the whole app.
 
 ## Commands

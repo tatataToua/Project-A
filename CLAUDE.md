@@ -11,9 +11,9 @@ It's also a portfolio piece — the code is expected to reflect real industry pr
 (e.g. the Google OAuth login flow), not shortcuts, since it's meant to be shown to
 employers.
 
-Currently implemented: Phase 1 (SALT Foundation), first slice of Phase 2 (Controlled
-Intelligence — a `/chat` endpoint with no retrieval yet), and Google OAuth login
-gating the whole app.
+Currently implemented: Phase 1 (SALT Foundation), Phase 2 (Controlled Intelligence),
+Phase 3 (RAG + LangGraph — tenant-scoped retrieval over pgvector behind a
+`POST /chat/{tenant_slug}` endpoint), and Google OAuth login gating the whole app.
 
 ## Commands
 
@@ -54,10 +54,11 @@ cookie's same-origin behavior depends on frontend and backend both using the
 
 **Backend is a small, flat FastAPI app — not a package-per-feature layout.**
 `backend/app/main.py` wires everything together (middleware, routers, the two
-non-auth endpoints `/health` and `/chat`); `config.py` is the single source of
-env-driven constants (loaded via `python-dotenv` from `backend/.env`); `db.py`
-holds the SQLAlchemy engine (Postgres/pgvector — provisioned but not yet used
-for retrieval, that's Phase 3); `auth.py` holds the Google OAuth login flow.
+non-auth endpoints `/health` and `/chat/{tenant_slug}`); `config.py` is the single
+source of env-driven constants (loaded via `python-dotenv` from `backend/.env`);
+`db.py` holds the SQLAlchemy engine (Postgres/pgvector, which now stores the
+tenant-scoped embedding chunks retrieval runs against); `auth.py` holds the Google
+OAuth login flow.
 New backend concerns should generally follow this pattern: a focused module in
 `app/`, wired into `main.py`, with its config constants added to `config.py`
 alongside the existing ones rather than scattered as raw `os.environ` reads.
@@ -71,7 +72,7 @@ name, exp}}` afterward. There is deliberately no server-side session store or
 revocation list yet (logout just clears the cookie) — this is a known, called-out
 gap, not an oversight, and should stay that way unless the roadmap changes.
 `app/auth.py`'s `require_user` FastAPI dependency is how routes opt into
-requiring a logged-in user (see its use on `/chat` in `main.py`).
+requiring a logged-in user (see its use on `/chat/{tenant_slug}` in `main.py`).
 
 **Frontend and backend are made to look same-origin in dev on purpose.**
 `vite.config.js` proxies `/auth`, `/chat`, `/health` from `:5173` to `:8000` so
@@ -90,23 +91,37 @@ or the chat widget accordingly — `ChatWidget.jsx` itself has no auth awareness
 beyond reloading the page if a `/chat` call comes back `401` (session expired
 mid-conversation).
 
-**The system prompt is built from `docs/content/bio.md` at request time**
-(`build_system_prompt()` in `main.py`), read fresh on every `/chat` call, not
-cached or embedded — that's the point where Phase 3's RAG (chunk + embed
-`docs/content/*.md` into pgvector) will eventually plug in.
+**Answers come from retrieval, not from a whole file stuffed into the prompt.**
+Tenant content lives at `docs/content/tenants/<slug>/*.md` (every `*.md` in that
+directory is content — filenames vary per tenant). It's split on markdown heading
+boundaries (`chunking.py`), embedded (`embeddings.py`), and stored per-tenant in
+pgvector (`models.py`) by an offline ingest step: `python -m app.ingest <slug>`
+(`ingest.py`), which must be re-run after editing content. At request time
+`POST /chat/{tenant_slug}` in `main.py` resolves the tenant and hands off to
+`workflow.py`, a LangGraph classify→retrieve→generate→self-critique graph; the
+retrieve step pulls that tenant's top-K chunks via `retrieval.py` (always filtered
+by `tenant_id` — that filter is the tenant isolation boundary), and a failed
+self-critique triggers exactly one retry.
 
 **LLM provider is swappable by design.** The backend calls Gemini's free tier
 through its OpenAI-compatible endpoint using the `openai` SDK — same code shape
 as real OpenAI, different `base_url`/model/key (`GEMINI_BASE_URL`,
-`GEMINI_MODEL`, `GEMINI_API_KEY` in `config.py`). Switching providers is meant
-to stay a one-line change in `main.py`.
+`GEMINI_MODEL`, `GEMINI_API_KEY` in `config.py`). There is exactly one client,
+constructed in `app/llm.py` and imported by both `embeddings.py` and
+`workflow.py`, so switching providers stays a change to `llm.py`/`config.py`
+rather than a hunt through call sites. Any OpenAI-compatible endpoint works,
+including a local Ollama server (`GEMINI_BASE_URL=http://localhost:11434/v1`).
 
 ## Required environment variables (`backend/.env`, not committed)
 
 | Var | Purpose |
 |---|---|
 | `GEMINI_API_KEY` | Free key from https://aistudio.google.com/apikey |
-| `GEMINI_MODEL` | Defaults to `gemini-2.5-flash` |
+| `GEMINI_MODEL` | Defaults to `gemini-flash-latest`; `gemini-3.1-flash-lite` is a good pin if the aliased model's free-tier quota is too tight |
+| `GEMINI_BASE_URL` | Defaults to Gemini's OpenAI-compatible endpoint; point it at any OpenAI-compatible server (e.g. `http://localhost:11434/v1` for local Ollama) |
+| `GEMINI_EMBEDDING_MODEL` | Embedding model, defaults to `gemini-embedding-001` (`nomic-embed-text` for Ollama) |
+| `EMBEDDING_DIMENSIONS` | Vector width, defaults to `768`. Must match the existing `embeddings` table — changing it later needs `DROP TABLE embeddings;` and a re-ingest |
+| `RETRIEVAL_TOP_K` | Chunks retrieved per question, defaults to `5` |
 | `DATABASE_URL` | Defaults to the docker-compose Postgres |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | From a Google Cloud Console OAuth client (Web application), redirect URI `http://localhost:8000/auth/callback` |
 | `SESSION_SECRET` | Signs the session cookie — generate with `python -c "import secrets; print(secrets.token_hex(32))"` |

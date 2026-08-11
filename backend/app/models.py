@@ -35,6 +35,12 @@ class EmbeddingChunk(Base):
 
 
 def create_tables() -> None:
+    # `create_all` only creates missing tables — it never migrates an existing one.
+    # If you change EMBEDDING_DIMENSIONS after the `embeddings` table already exists,
+    # this call silently no-ops and the old vector width stays in place; you must
+    # `DROP TABLE embeddings;` and re-run ingestion, or inserts will fail later with a
+    # confusing dimension-mismatch error that points nowhere near the config change.
+    #
     # Ensure pgvector's `vector` type exists before creating tables that use it —
     # required on a fresh database where the extension hasn't been enabled yet.
     check_connection()

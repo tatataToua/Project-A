@@ -73,6 +73,51 @@ npm run dev
 Open the printed local URL and chat with the widget — it talks to the backend on
 `localhost:8000`.
 
+## Debugging the chat workflow
+
+Every real chat turn — including ones sent from the browser widget — auto-logs to
+`backend/logs/chat_trace.log` (gitignored) with per-node timing, token counts, and the
+critique verdict for the classify → retrieve → generate → critique graph (wired up in
+`app/tracing.py`, used by both `/chat/{tenant_slug}` and the tools below). No extra
+setup needed — just use the app normally and the log fills in.
+
+To watch it live in a second terminal while you chat in the browser:
+
+```bash
+cd backend
+.venv\Scripts\python.exe -m app.trace_chat --watch
+```
+
+```
+You: hello
+  [classify ]  0.27s |   41 in /   2 out tok | category=general
+  [retrieve ]  0.04s |    6 in /   0 out tok | 5 chunks retrieved
+  [generate ]  0.67s |  319 in /  36 out tok | answer="Hello! Welcome to Two Owls Tavern. How can I assist you today? We're a..."
+  [critique ]  0.20s |  349 in /   2 out tok | pass
+
+  answer: Hello! Welcome to Two Owls Tavern. How can I assist you today? We're always happy
+  to help with reservations or answer any questions about our menu and seating arrangements.
+
+  total: 1.17s | 715 in / 40 out tok | first-pass | critique: pass
+```
+
+To review after the fact — first-pass rate, average latency per node, average tokens
+per turn, across every turn ever logged:
+
+```bash
+.venv\Scripts\python.exe -m app.trace_chat --stats
+```
+
+To browse the full history in Excel/Sheets — one row per graph node per turn, full
+untruncated answer text, no 70-character preview cutoff:
+
+```bash
+.venv\Scripts\python.exe -m app.trace_chat --export-csv
+```
+
+See `backend/app/tracing.py` (the tracer) and `backend/app/trace_chat.py` (the CLI) for
+details.
+
 ## Project structure
 
 ```

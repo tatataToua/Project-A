@@ -72,7 +72,7 @@ def test_tenant_with_content_returns_workflow_answer(monkeypatch):
     finally:
         session.close()
 
-    monkeypatch.setattr(main.workflow, "run_chat_workflow", lambda tenant_id, question: "mocked answer")
+    monkeypatch.setattr(main.tracing, "trace_turn", lambda tenant_id, question: ("mocked answer", {}))
 
     try:
         resp = _client().post(f"/chat/{TENANT_WITH_CONTENT}", json={"message": "hi"})

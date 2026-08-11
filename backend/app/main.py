@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.middleware.sessions import SessionMiddleware
 
-from app import auth, ratelimit, workflow
+from app import auth, ratelimit, tracing
 from app.config import (
     SESSION_COOKIE_SECURE,
     SESSION_MAX_AGE_SECONDS,
@@ -19,6 +19,8 @@ from app.models import EmbeddingChunk, Tenant
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("askme")
+
+tracing.instrument_client()
 
 app = FastAPI(title="Ask Me")
 
@@ -70,7 +72,7 @@ def chat(
 
     start = time.monotonic()
     try:
-        answer = workflow.run_chat_workflow(tenant_id, req.message)
+        answer, _ = tracing.trace_turn(tenant_id, req.message)
     except (OpenAIError, SQLAlchemyError):
         # The workflow both calls the LLM and hits the database (retrieval) --
         # either failing is an assistant failure, not a bug to leak as a raw 500.

@@ -13,6 +13,9 @@ also a portfolio piece — the code is expected to reflect real industry practic
 the Google OAuth login flow, per-tenant data isolation), not shortcuts, since it's meant
 to be shown to employers. It's also being explored, unvalidated, as a multi-tenant SaaS
 product — see `BUSINESS.md` and `docs/superpowers/specs/2026-08-10-ask-me-saas-design.md`.
+Real, reproducible performance/cost/quality numbers (and resume-ready bullets derived
+from them) are tracked in `METRICS.md` — re-run `backend/scripts/bench_chat.py` and add
+a ledger row whenever a change is worth quantifying.
 
 Currently implemented: Phase 1 (SALT Foundation), Phase 2 (Controlled Intelligence,
 superseded), Phase 3 (RAG + LangGraph — tenant-scoped retrieval over pgvector behind a

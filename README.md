@@ -16,7 +16,7 @@ personal instance — see `BUSINESS.md` for the (unvalidated) business gameplan 
 
 ### 1. Fill in your content
 
-Edit `docs/content/bio.md` (used today), plus `projects.md` and `resume.md` (used starting
+Edit `docs/content/tenants/toua/bio.md` (used today), plus `projects.md` and `resume.md` in the same directory (used starting
 Phase 3). This is the only source of truth for what the assistant knows about you.
 
 ### 2. Start Postgres

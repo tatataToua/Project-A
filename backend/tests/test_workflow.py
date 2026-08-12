@@ -46,7 +46,7 @@ def _patch_common(monkeypatch, chat_contents: list):
 
 def test_answers_directly_when_critique_passes(monkeypatch):
     # order: classify, generate, critique
-    fake_chat_api = _patch_common(monkeypatch, ["general", "first answer", "pass"])
+    fake_chat_api = _patch_common(monkeypatch, ['{"category": "general"}', "first answer", "pass"])
 
     answer = workflow.run_chat_workflow(tenant_id=1, question="What do you do?")
 
@@ -57,7 +57,7 @@ def test_answers_directly_when_critique_passes(monkeypatch):
 def test_retries_exactly_once_when_critique_fails(monkeypatch):
     # order: classify, generate, critique(fail), generate(retry), critique(pass)
     fake_chat_api = _patch_common(
-        monkeypatch, ["hours_location", "first answer", "fail", "second answer", "pass"]
+        monkeypatch, ['{"category": "hours_location"}', "first answer", "fail", "second answer", "pass"]
     )
 
     answer = workflow.run_chat_workflow(tenant_id=1, question="Where did you go to school?")
@@ -69,7 +69,7 @@ def test_retries_exactly_once_when_critique_fails(monkeypatch):
 def test_declines_when_retried_answer_still_fails_critique(monkeypatch):
     # order: classify, generate, critique(fail), generate(retry), critique(fail again)
     fake_chat_api = _patch_common(
-        monkeypatch, ["general", "first answer", "fail", "second answer", "fail"]
+        monkeypatch, ['{"category": "general"}', "first answer", "fail", "second answer", "fail"]
     )
 
     answer = workflow.run_chat_workflow(tenant_id=1, question="What do you do?")
@@ -79,7 +79,7 @@ def test_declines_when_retried_answer_still_fails_critique(monkeypatch):
 
 
 def test_generate_context_includes_source_attribution(monkeypatch):
-    fake_chat_api = _patch_common(monkeypatch, ["general", "first answer", "pass"])
+    fake_chat_api = _patch_common(monkeypatch, ['{"category": "general"}', "first answer", "pass"])
     monkeypatch.setattr(
         workflow, "retrieve_chunks",
         lambda tenant_id, query_text, vec, **kw: [("menu.md", "Margherita pizza — $17")],
@@ -93,7 +93,7 @@ def test_generate_context_includes_source_attribution(monkeypatch):
 
 
 def test_retrieval_search_text_is_biased_by_classified_category(monkeypatch):
-    fake_chat_api = _patch_common(monkeypatch, ["hours_location", "first answer", "pass"])
+    fake_chat_api = _patch_common(monkeypatch, ['{"category": "hours_location"}', "first answer", "pass"])
 
     workflow.run_chat_workflow(tenant_id=1, question="Where did you go to school?")
 
@@ -121,10 +121,56 @@ def test_classify_node_returns_general_when_llm_fails(monkeypatch):
     assert workflow._classify_node({"question": "anything"}) == {"category": "general"}
 
 
+def test_classify_retries_once_on_invalid_json_then_succeeds(monkeypatch):
+    fake_chat_api = _patch_common(
+        monkeypatch, ["not valid json at all", '{"category": "menu"}', "first answer", "pass"]
+    )
+
+    answer = workflow.run_chat_workflow(tenant_id=1, question="What's on the menu?")
+
+    assert answer == "first answer"
+    assert fake_chat_api.call_count == 4
+    [search_text] = fake_chat_api.embed_inputs[0]
+    assert search_text == "[menu] What's on the menu?"
+
+
+def test_classify_falls_back_to_general_after_two_invalid_attempts(monkeypatch):
+    fake_chat_api = _patch_common(
+        monkeypatch, ["not valid json", "still not valid json", "first answer", "pass"]
+    )
+
+    answer = workflow.run_chat_workflow(tenant_id=1, question="What do you do?")
+
+    assert answer == "first answer"
+    assert fake_chat_api.call_count == 4
+    [search_text] = fake_chat_api.embed_inputs[0]
+    assert search_text == "[general] What do you do?"
+
+
+def test_parse_classify_response_accepts_valid_category():
+    assert workflow._parse_classify_response('{"category": "policies"}') == "policies"
+
+
+def test_parse_classify_response_rejects_malformed_json():
+    assert workflow._parse_classify_response("not json") is None
+
+
+def test_parse_classify_response_rejects_unknown_category():
+    assert workflow._parse_classify_response('{"category": "not_a_real_category"}') is None
+
+
+def test_parse_classify_response_rejects_missing_field():
+    assert workflow._parse_classify_response('{"not_category": "menu"}') is None
+
+
+def test_parse_classify_response_rejects_none():
+    assert workflow._parse_classify_response(None) is None
+
+
 def test_critique_failure_keeps_the_existing_answer(monkeypatch):
     # classify, generate, critique raises -> no retry, answer stands
     fake_chat_api = _patch_common(
-        monkeypatch, ["general", "first answer", OpenAIError("critique down")]
+        monkeypatch, ['{"category": "general"}', "first answer", OpenAIError("critique down")]
     )
 
     answer = workflow.run_chat_workflow(tenant_id=1, question="What do you do?")
@@ -134,7 +180,7 @@ def test_critique_failure_keeps_the_existing_answer(monkeypatch):
 
 
 def test_generate_appends_custom_instructions_when_present(monkeypatch):
-    fake_chat_api = _patch_common(monkeypatch, ["general", "first answer", "pass"])
+    fake_chat_api = _patch_common(monkeypatch, ['{"category": "general"}', "first answer", "pass"])
     monkeypatch.setattr(workflow, "get_custom_instructions", lambda: "Keep answers short.")
 
     workflow.run_chat_workflow(tenant_id=1, question="What do you do?")
@@ -149,7 +195,7 @@ def test_generate_appends_custom_instructions_when_present(monkeypatch):
 
 
 def test_generate_omits_instructions_block_when_none_configured(monkeypatch):
-    fake_chat_api = _patch_common(monkeypatch, ["general", "first answer", "pass"])
+    fake_chat_api = _patch_common(monkeypatch, ['{"category": "general"}', "first answer", "pass"])
     monkeypatch.setattr(workflow, "get_custom_instructions", lambda: "")
 
     workflow.run_chat_workflow(tenant_id=1, question="What do you do?")

@@ -31,3 +31,4 @@ RETRIEVAL_TOP_K = int(os.environ.get("RETRIEVAL_TOP_K", "5"))
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 CONTENT_DIR = REPO_ROOT / "docs" / "content"
+INSTRUCTIONS_FILE = REPO_ROOT / "backend" / "instructions.txt"

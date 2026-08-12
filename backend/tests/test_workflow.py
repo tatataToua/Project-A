@@ -16,11 +16,13 @@ class _ScriptedChatAPI:
     def __init__(self, contents: list):
         self._queue = list(contents)
         self.call_count = 0
+        self.call_kwargs: list[dict] = []
         # Texts handed to embed_texts, in order -- populated by _patch_common.
         self.embed_inputs: list[list[str]] = []
 
     def create(self, **kwargs):
         self.call_count += 1
+        self.call_kwargs.append(kwargs)
         content = self._queue.pop(0)
         if isinstance(content, Exception):
             raise content
@@ -102,3 +104,25 @@ def test_critique_failure_keeps_the_existing_answer(monkeypatch):
 
     assert answer == "first answer"
     assert fake_chat_api.call_count == 3
+
+
+def test_generate_appends_custom_instructions_when_present(monkeypatch):
+    fake_chat_api = _patch_common(monkeypatch, ["general", "first answer", "pass"])
+    monkeypatch.setattr(workflow, "get_custom_instructions", lambda: "Keep answers short.")
+
+    workflow.run_chat_workflow(tenant_id=1, question="What do you do?")
+
+    # order: classify, generate, critique -- generate is call index 1
+    system_prompt = fake_chat_api.call_kwargs[1]["messages"][0]["content"]
+    assert "ADDITIONAL OPERATOR INSTRUCTIONS" in system_prompt
+    assert "Keep answers short." in system_prompt
+
+
+def test_generate_omits_instructions_block_when_none_configured(monkeypatch):
+    fake_chat_api = _patch_common(monkeypatch, ["general", "first answer", "pass"])
+    monkeypatch.setattr(workflow, "get_custom_instructions", lambda: "")
+
+    workflow.run_chat_workflow(tenant_id=1, question="What do you do?")
+
+    system_prompt = fake_chat_api.call_kwargs[1]["messages"][0]["content"]
+    assert "ADDITIONAL OPERATOR INSTRUCTIONS" not in system_prompt

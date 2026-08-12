@@ -1,14 +1,53 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { SendIcon } from "./icons.jsx";
+import { TENANT_EXAMPLE_QUESTIONS, TENANT_NAME, TENANT_SLUG } from "./tenant.js";
 
-const TENANT_SLUG = "two-owls-tavern";
+const STAGE_LABELS = [
+  `Searching ${TENANT_NAME}'s notes…`,
+  "Drafting an answer…",
+  "Double-checking…",
+];
+
+function StageStatus() {
+  const [stage, setStage] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setStage((s) => (s + 1) % STAGE_LABELS.length);
+    }, 1100);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <div className="msg-assistant" aria-hidden="true">
+      <div className="msg-assistant__meta">Ask Me · {TENANT_NAME}</div>
+      <div className="status-cycle__label" key={stage}>
+        {STAGE_LABELS[stage]}
+      </div>
+    </div>
+  );
+}
 
 export default function ChatWidget() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const textareaRef = useRef(null);
+  const transcriptEndRef = useRef(null);
 
-  async function sendMessage() {
-    const text = input.trim();
+  useEffect(() => {
+    transcriptEndRef.current?.scrollIntoView({ block: "end" });
+  }, [messages, loading]);
+
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
+  }, [input]);
+
+  async function sendMessage(overrideText) {
+    const text = (overrideText ?? input).trim();
     if (!text || loading) return;
 
     setMessages((prev) => [...prev, { role: "user", content: text }]);
@@ -30,7 +69,7 @@ export default function ChatWidget() {
       if (!res.ok) {
         setMessages((prev) => [
           ...prev,
-          { role: "assistant", content: data.detail || "Something went wrong." },
+          { role: "assistant", content: data.detail || "Something went wrong.", error: true },
         ]);
         return;
       }
@@ -38,54 +77,87 @@ export default function ChatWidget() {
     } catch (err) {
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: "Something went wrong reaching the backend." },
+        {
+          role: "assistant",
+          content: "Something went wrong reaching the backend.",
+          error: true,
+        },
       ]);
     } finally {
       setLoading(false);
     }
   }
 
+  function handleKeyDown(e) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  }
+
   return (
-    <div style={{ maxWidth: 480, margin: "40px auto", fontFamily: "sans-serif" }}>
-      <h3>Ask Me</h3>
-      <div
-        style={{
-          border: "1px solid #ddd",
-          borderRadius: 8,
-          padding: 12,
-          height: 320,
-          overflowY: "auto",
-          marginBottom: 12,
-        }}
-      >
-        {messages.map((m, i) => (
-          <div key={i} style={{ margin: "8px 0", textAlign: m.role === "user" ? "right" : "left" }}>
-            <span
-              style={{
-                display: "inline-block",
-                padding: "6px 10px",
-                borderRadius: 12,
-                background: m.role === "user" ? "#0b74de" : "#f0f0f0",
-                color: m.role === "user" ? "white" : "black",
-              }}
-            >
-              {m.content}
-            </span>
+    <div className="chat-column">
+      <div className="transcript" aria-live="polite">
+      <div className="transcript-inner">
+        {messages.length === 0 && !loading && (
+          <div className="empty-state">
+            <p className="empty-state__title">Ask {TENANT_NAME} anything.</p>
+            <div className="empty-state__chips">
+              {TENANT_EXAMPLE_QUESTIONS.map((q) => (
+                <button key={q} className="chip" onClick={() => sendMessage(q)}>
+                  {q}
+                </button>
+              ))}
+            </div>
           </div>
-        ))}
-        {loading && <div style={{ color: "#999" }}>thinking...</div>}
+        )}
+
+        {messages.map((m, i) =>
+          m.role === "user" ? (
+            <div className="msg-row--user" key={i}>
+              <div className="msg-user">{m.content}</div>
+            </div>
+          ) : (
+            <div className="msg-row--assistant" key={i}>
+              <div className={`msg-assistant${m.error ? " msg-assistant--error" : ""}`}>
+                <div className="msg-assistant__meta">Ask Me · {TENANT_NAME}</div>
+                <div className="msg-assistant__body">{m.content}</div>
+              </div>
+            </div>
+          )
+        )}
+
+        {loading && (
+          <div className="msg-row--assistant">
+            <StageStatus />
+          </div>
+        )}
+
+        <div ref={transcriptEndRef} />
       </div>
-      <div style={{ display: "flex", gap: 8 }}>
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-          placeholder="Ask something..."
-          style={{ flex: 1, padding: 8 }}
-        />
-        <button onClick={sendMessage} disabled={loading}>
-          Send
-        </button>
+      </div>
+
+      <div className="composer">
+        <div className="composer__form">
+          <textarea
+            ref={textareaRef}
+            className="composer__input"
+            rows={1}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Ask something..."
+            aria-label="Ask a question"
+          />
+          <button
+            className="send-btn"
+            onClick={() => sendMessage()}
+            disabled={loading || !input.trim()}
+            aria-label="Send"
+          >
+            <SendIcon />
+          </button>
+        </div>
       </div>
     </div>
   );

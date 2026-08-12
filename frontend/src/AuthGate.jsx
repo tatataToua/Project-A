@@ -1,5 +1,25 @@
 import { useEffect, useState } from "react";
 import ChatWidget from "./ChatWidget.jsx";
+import TavernInfoRail from "./TavernInfoRail.jsx";
+import { ClockIcon, GoogleLogo, LogoutIcon, OwlMark } from "./icons.jsx";
+import { TENANT_NAME, TENANT_TAGLINE, formatHoursLabel, getTodayRow, isOpenNow } from "./tenant.js";
+
+function initials(name, email) {
+  const source = name || email || "?";
+  return source.trim().charAt(0).toUpperCase();
+}
+
+function TopbarStatus() {
+  const open = isOpenNow();
+  const today = getTodayRow();
+  return (
+    <span className={`status-pill ${open ? "status-pill--open" : "status-pill--closed"}`}>
+      <ClockIcon size={13} />
+      {open ? "Open now" : "Closed now"}
+      {today ? ` · ${formatHoursLabel(today)}` : ""}
+    </span>
+  );
+}
 
 export default function AuthGate() {
   const [status, setStatus] = useState("loading"); // loading | signed-out | signed-in
@@ -34,21 +54,43 @@ export default function AuthGate() {
 
   if (status === "signed-out") {
     return (
-      <div style={{ maxWidth: 480, margin: "40px auto", fontFamily: "sans-serif", textAlign: "center" }}>
-        <h3>Ask Me</h3>
-        {loginError && <p style={{ color: "crimson" }}>Login failed, try again.</p>}
-        <a href="/auth/login">Sign in with Google</a>
+      <div className="signin">
+        <div className="signin__card">
+          <OwlMark size={40} className="signin__mark" />
+          <p className="signin__wordmark">Ask Me</p>
+          <p className="signin__desc">{TENANT_TAGLINE}</p>
+          <TavernInfoRail variant="hero" />
+          {loginError && <div className="alert-banner">Login failed — try again.</div>}
+          <a className="google-btn" href="/auth/login">
+            <GoogleLogo />
+            Sign in with Google
+          </a>
+        </div>
       </div>
     );
   }
 
   return (
-    <div>
-      <div style={{ maxWidth: 480, margin: "0 auto", padding: "8px 0", textAlign: "right", fontFamily: "sans-serif" }}>
-        <span>{user?.name || user?.email}</span>{" "}
-        <button onClick={logout}>Log out</button>
+    <div className="app-shell">
+      <div className="topbar">
+        <div className="topbar__brand">
+          <OwlMark size={20} className="topbar__mark" />
+          <p className="wordmark">Ask Me</p>
+          <span className="tenant-badge">{TENANT_NAME}</span>
+          <TopbarStatus />
+        </div>
+        <div className="topbar__user">
+          <span className="avatar">{initials(user?.name, user?.email)}</span>
+          <span className="user-name">{user?.name || user?.email}</span>
+          <button className="icon-btn" onClick={logout} aria-label="Log out">
+            <LogoutIcon />
+          </button>
+        </div>
       </div>
-      <ChatWidget />
+      <div className="app-shell__body">
+        <TavernInfoRail variant="rail" />
+        <ChatWidget />
+      </div>
     </div>
   );
 }

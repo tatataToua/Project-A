@@ -56,14 +56,12 @@ def _retrieve_node(state: ChatState) -> dict:
 
 
 def _generate_node(state: ChatState) -> dict:
-    context = "\n\n".join(state["chunks"]) or "(no matching restaurant information found)"
+    context = "\n\n".join(state["chunks"]) or "(no matching background information found)"
     system_prompt = (
-        "You are the AI assistant for a restaurant, answering as the "
-        "restaurant itself (first person plural -- 'we' / 'our'). Answer "
-        "grounded only in the provided context, and say when something "
-        "isn't covered by it. Never assert with certainty that a dish is "
-        "safe for a given allergy -- defer to asking staff directly.\n\n"
-        f"--- CONTEXT ---\n{context}"
+        "You are an AI assistant speaking on behalf of the person described "
+        "below. Answer in first person, grounded only in the provided "
+        "background, and say when something isn't covered by it.\n\n"
+        f"--- BACKGROUND ---\n{context}"
     )
     custom_instructions = get_custom_instructions()
     if custom_instructions:

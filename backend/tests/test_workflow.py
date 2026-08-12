@@ -116,6 +116,9 @@ def test_generate_appends_custom_instructions_when_present(monkeypatch):
     system_prompt = fake_chat_api.call_kwargs[1]["messages"][0]["content"]
     assert "ADDITIONAL OPERATOR INSTRUCTIONS" in system_prompt
     assert "Keep answers short." in system_prompt
+    assert system_prompt.index("--- BACKGROUND ---") < system_prompt.index(
+        "--- ADDITIONAL OPERATOR INSTRUCTIONS ---"
+    )
 
 
 def test_generate_omits_instructions_block_when_none_configured(monkeypatch):

@@ -15,6 +15,7 @@ class ChatState(TypedDict):
     question: str
     query: str
     category: str
+    search_text: str
     chunks: list[str]
     answer: str
     retry_used: bool
@@ -57,7 +58,7 @@ def _retrieve_node(state: ChatState) -> dict:
         search_text = f"[{state['category']}] {search_text}"
     [query_vector] = embed_texts([search_text])
     chunks = retrieve_chunks(state["tenant_id"], state["question"], query_vector)
-    return {"chunks": chunks}
+    return {"chunks": chunks, "search_text": search_text}
 
 
 def _generate_node(state: ChatState) -> dict:
@@ -152,6 +153,7 @@ def run_chat_workflow(tenant_id: int, question: str) -> str:
             "question": question,
             "query": question,
             "category": "",
+            "search_text": "",
             "chunks": [],
             "answer": "",
             "retry_used": False,

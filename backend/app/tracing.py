@@ -86,9 +86,12 @@ def _preview_for_node(node_name: str, delta: dict, prev_retry_used: bool) -> str
 
 def _full_text_for_node(node_name: str, delta: dict, preview: str) -> str:
     """Untruncated version of the preview, for storage/export. Only `generate`
-    actually differs from the console preview -- the others are already short."""
+    and `retrieve` actually differ from the console preview -- the others are
+    already short."""
     if node_name == "generate":
         return delta.get("answer") or ""
+    if node_name == "retrieve":
+        return f'{preview} (embedded query: "{delta.get("search_text", "")}")'
     return preview
 
 
@@ -106,6 +109,7 @@ def trace_turn(tenant_id: int, question: str, on_node: Optional[NodeCallback] = 
         "question": question,
         "query": question,
         "category": "",
+        "search_text": "",
         "chunks": [],
         "answer": "",
         "retry_used": False,

@@ -29,7 +29,7 @@
 - Standalone CLI (`python -m app.eval_rag --tenant <slug>`), exits non-zero if mean
   faithfulness drops below `FAITHFULNESS_THRESHOLD`. Consumed by Task 2's CI workflow.
 
-- [ ] **Step 1: Add dependencies and install them**
+- [x] **Step 1: Add dependencies and install them**
 
 In `backend/requirements.txt`, add after the `sentence-transformers` line:
 
@@ -44,7 +44,12 @@ Run: `C:\pyvenvs\p35backend\Scripts\python.exe -m pip install -r backend\require
 
 This is a real, possibly slow install (Ragas pulls in a fair dependency tree). Be patient.
 
-- [ ] **Step 2: Implement `app/eval_rag.py`**
+- [x] **Step 2: Implement `app/eval_rag.py`**
+
+Result: implemented as in the snippet below, plus a `langchain_community.chat_models.vertexai`
+compatibility shim (ragas 0.4.3 unconditionally imports it; current langchain-community dropped
+it) and `str()` coercion on golden-set fields that YAML parses as non-string scalars (e.g.
+`expected_answer: 2015.` → Python `float`, which pyarrow then rejects mixed with `str` entries).
 
 ```python
 """Golden-set evaluation: runs each golden Q&A pair through the real chat
@@ -150,7 +155,7 @@ the dict keys in `build_dataset` and the `scores["faithfulness"]` lookup to matc
 with `python -c "import ragas; print(ragas.__version__)"` and the installed package's
 own docs/docstrings.
 
-- [ ] **Step 3: Run it for real against the local Ollama provider**
+- [x] **Step 3: Run it for real against the local Ollama provider**
 
 Confirm `backend/.env` has `GEMINI_BASE_URL=http://localhost:11434/v1` and
 `GEMINI_MODEL=qwen2.5:7b-instruct` set (it already does per this session's setup), Postgres
@@ -158,26 +163,43 @@ is running, and the tenant is ingested (`C:\pyvenvs\p35backend\Scripts\python.ex
 
 Run: `C:\pyvenvs\p35backend\Scripts\python.exe -m app.eval_rag --tenant two-owls-tavern` (from `backend/`)
 
-This is a real end-to-end run against a live local LLM — expect it to take real time (30
-questions, each running the full classify→retrieve→generate→critique workflow, plus a
-Ragas faithfulness judge call per question). Capture the full output for your report.
-There's no fixed "expected" pass/fail here — this is the first real measurement, not a
-regression check — but the script should run to completion and print a mean faithfulness
-score without crashing. If it crashes on a Ragas API mismatch, work through Step 2's
-adaptation note above rather than guessing at fixes blindly.
+Result: the first real run surfaced two genuine bugs, not just an "adapt column names" mismatch:
 
-- [ ] **Step 4: Run the full backend test suite** (confirms the new dependencies didn't
+1. **Silent-pass-on-total-failure bug.** Ragas's default `RunConfig` dispatches up to 16
+   concurrent judge calls. Fine against a hosted API, but this local Ollama instance
+   effectively serializes generation on one model — concurrent requests just queue behind
+   each other (measured: ~1.5-2s added per concurrent request), and Ragas's retry-on-timeout
+   behavior resubmits into the same already-saturated queue, compounding the backlog. Result:
+   30/30 `TimeoutError`, and because `pandas.Series.mean()` skips `NaN` and `nan < threshold`
+   is always `False` in Python, the script printed **"PASSED"** with a `NaN` mean and zero
+   real scores — a build-blocking gate that can never actually block. Fixed by serializing
+   judge calls (`RunConfig(max_workers=1, timeout=300)`) and hard-failing whenever the
+   failed-score fraction exceeds `MAX_FAILED_SCORE_FRACTION` (10%), instead of silently
+   averaging over whichever subset happened to succeed.
+2. **Isolated small-model formatting flakes.** Even serialized, the local 7B judge
+   occasionally drops the last field when asked to enumerate a longer list of statement
+   verdicts (`OutputParserException`, Pydantic "Field required"). Two separate full runs each
+   hit exactly one such flake, on different questions — confirmed as judge-side noise, not a
+   retrieval/generation regression, since the rest of each run scored consistently high. Given
+   a tolerance (implemented above), this doesn't fail the gate.
+
+Final passing run: **28/30 scored, mean faithfulness 0.948** (threshold 0.7). Judge model
+`qwen2.5:7b-instruct`. Paste-ready for `METRICS.md`.
+
+- [x] **Step 4: Run the full backend test suite** (confirms the new dependencies didn't
   break anything else)
 
 Run: `C:\pyvenvs\p35backend\Scripts\python.exe -m pytest -q` (from `backend/`)
-Expected: all existing tests still PASS.
+Result: 60/60 passed.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/requirements.txt backend/app/eval_rag.py
 git commit -m "Add Ragas faithfulness scoring for the golden eval set"
 ```
+
+Result: committed as `bf5c45e`.
 
 ---
 
@@ -189,7 +211,7 @@ git commit -m "Add Ragas faithfulness scoring for the golden eval set"
 **Interfaces:**
 - Standalone GitHub Actions workflow, invokes Task 1's `app.eval_rag` CLI.
 
-- [ ] **Step 1: Implement `.github/workflows/eval.yml`**
+- [x] **Step 1: Implement `.github/workflows/eval.yml`**
 
 ```yaml
 name: RAG Eval Gate
@@ -265,21 +287,18 @@ jobs:
         run: python -m app.eval_rag --tenant two-owls-tavern
 ```
 
-- [ ] **Step 2: Validate the YAML structurally**
+- [x] **Step 2: Validate the YAML structurally**
 
-This can't be run locally the way a Python test can — GitHub Actions only executes on
-GitHub's own runners. Do what you can from here:
-1. Confirm the YAML parses: `python -c "import yaml; yaml.safe_load(open('.github/workflows/eval.yml'))"` (any Python with PyYAML available works for this, doesn't need the project venv).
-2. Re-read the file once against the actual `app/eval_rag.py` CLI signature from Task 1
-   (`--tenant` flag, working directory expectations) to confirm the final step's command
-   actually matches what Task 1 built.
-3. Note in your report that this workflow's *first real run* only happens when it's
-   pushed to GitHub — this task cannot fully verify that from a local checkout, and that's
-   expected, not a gap in your work.
+Result: YAML parses cleanly (`yaml.safe_load`), and the final step's command
+(`python -m app.eval_rag --tenant two-owls-tavern`, `working-directory: backend`) matches
+`app/eval_rag.py`'s actual CLI. This workflow's first real run only happens once it's pushed
+to GitHub — not verified from this local checkout, as expected.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add .github/workflows/eval.yml
 git commit -m "Add CI eval gate (Ragas faithfulness, against Ollama, no secret required)"
 ```
+
+Result: committed as `5a59973`.

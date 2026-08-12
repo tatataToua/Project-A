@@ -1,4 +1,5 @@
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, HTTPException
 from openai import OpenAIError
@@ -14,7 +15,7 @@ from app.config import (
     SESSION_SECRET,
 )
 from app.db import SessionLocal
-from app.models import EmbeddingChunk, Tenant
+from app.models import EmbeddingChunk, Tenant, create_tables
 
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -22,7 +23,14 @@ logger = logging.getLogger("askme")
 
 tracing.instrument_client()
 
-app = FastAPI(title="Ask Me")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    create_tables()
+    yield
+
+
+app = FastAPI(title="Ask Me", lifespan=lifespan)
 
 app.add_middleware(
     SessionMiddleware,

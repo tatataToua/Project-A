@@ -1,19 +1,27 @@
 """Cross-encoder reranking: rescores retrieval candidates against the query.
 
-The model is loaded lazily (not at import time) because it pulls in torch --
-code paths that never call `rerank_chunks` (e.g. workflow tests that monkeypatch
-retrieval entirely) shouldn't pay that startup cost.
+The model *weights* are loaded lazily (not at import time) -- `_get_model`
+only constructs the `CrossEncoder` on first use. The `sentence_transformers`
+import itself (which pulls in torch) is also deferred into `_get_model` so
+that importing this module (e.g. via the main -> tracing -> workflow ->
+retrieval -> reranking chain on every app/test startup) doesn't pay that cost
+for code paths that never call `rerank_chunks`.
 """
-from sentence_transformers import CrossEncoder
+from typing import TYPE_CHECKING
 
 from app.config import RERANK_MODEL
 
-_model: CrossEncoder | None = None
+if TYPE_CHECKING:
+    from sentence_transformers import CrossEncoder
+
+_model: "CrossEncoder | None" = None
 
 
-def _get_model() -> CrossEncoder:
+def _get_model() -> "CrossEncoder":
     global _model
     if _model is None:
+        from sentence_transformers import CrossEncoder
+
         _model = CrossEncoder(RERANK_MODEL)
     return _model
 

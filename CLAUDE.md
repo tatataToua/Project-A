@@ -105,8 +105,10 @@ pgvector (`models.py`) by an offline ingest step: `python -m app.ingest <slug>`
 (`ingest.py`), which must be re-run after editing content. At request time
 `POST /chat/{tenant_slug}` in `main.py` resolves the tenant and hands off to
 `workflow.py`, a LangGraph classify→retrieve→generate→self-critique graph; the
-retrieve step pulls that tenant's top-K chunks via `retrieval.py` (always filtered
-by `tenant_id` — that filter is the tenant isolation boundary), and a failed
+retrieve step (`retrieval.py`) does hybrid retrieval — pgvector semantic search
+fused with Postgres full-text search via reciprocal rank fusion, then reranked
+by a local cross-encoder (`reranking.py`) down to the final top-K — always
+filtered by `tenant_id` (the tenant isolation boundary), and a failed
 self-critique triggers exactly one retry. An optional local `backend/instructions.txt`
 (gitignored) is appended to the generate node's system prompt for operator tuning, read
 fresh on every request.

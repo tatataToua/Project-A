@@ -1,9 +1,13 @@
+import logging
+
 from sqlalchemy import select, text
 
 from app.config import RETRIEVAL_OVERFETCH_K, RETRIEVAL_TOP_K
 from app.db import SessionLocal
 from app.models import EmbeddingChunk
 from app.reranking import rerank_chunks
+
+logger = logging.getLogger("askme")
 
 _RRF_CONSTANT = 60  # standard smoothing constant for reciprocal rank fusion
 
@@ -61,11 +65,16 @@ def retrieve_chunks(
     search (reciprocal rank fusion), then rerank the fused candidates with a
     cross-encoder down to the final top-k. Every branch is filtered by
     tenant_id -- the tenant isolation boundary."""
+    overfetch_k = max(overfetch_k, k)
     session = SessionLocal()
     try:
         vector_hits = _vector_search(session, tenant_id, query_embedding, overfetch_k)
         fulltext_hits = _fulltext_search(session, tenant_id, query_text, overfetch_k)
         fused = _reciprocal_rank_fusion([vector_hits, fulltext_hits], k=overfetch_k)
-        return rerank_chunks(query_text, fused, k)
+        try:
+            return rerank_chunks(query_text, fused, k)
+        except Exception:
+            logger.exception("Reranker failed; falling back to un-reranked hybrid results")
+            return [chunk_text for _chunk_id, chunk_text in fused[:k]]
     finally:
         session.close()

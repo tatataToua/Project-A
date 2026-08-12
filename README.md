@@ -38,6 +38,9 @@ cp .env.example .env          # then fill in GEMINI_API_KEY
 uvicorn app.main:app --reload
 ```
 
+Optionally, `cp instructions.txt.example instructions.txt` and edit it to tune the
+assistant's tone/scope — edits take effect on the next chat message, no restart needed.
+
 Get a free `GEMINI_API_KEY` (no credit card) at https://aistudio.google.com/apikey.
 The backend calls it through Gemini's OpenAI-compatible endpoint, so the code is the
 same shape it'd be for real OpenAI — swapping providers later is a one-line change

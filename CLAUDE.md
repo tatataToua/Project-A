@@ -107,7 +107,9 @@ pgvector (`models.py`) by an offline ingest step: `python -m app.ingest <slug>`
 `workflow.py`, a LangGraph classify→retrieve→generate→self-critique graph; the
 retrieve step pulls that tenant's top-K chunks via `retrieval.py` (always filtered
 by `tenant_id` — that filter is the tenant isolation boundary), and a failed
-self-critique triggers exactly one retry.
+self-critique triggers exactly one retry. An optional local `backend/instructions.txt`
+(gitignored) is appended to the generate node's system prompt for operator tuning, read
+fresh on every request.
 
 **LLM provider is swappable by design.** The backend calls Gemini's free tier
 through its OpenAI-compatible endpoint using the `openai` SDK — same code shape

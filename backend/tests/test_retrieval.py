@@ -17,10 +17,10 @@ def _vector(seed: int, dim: int = EMBEDDING_DIMENSIONS) -> list[float]:
 
 def _passthrough_rerank(query_text, candidates, k):
     """Stand-in for the real cross-encoder: preserves whatever order the fused
-    hybrid results already arrived in, just truncating to k. Used so these
-    tests exercise the SQL/RRF logic in isolation, deterministically, without
-    depending on the (slower, model-download-requiring) real reranker."""
-    return [chunk_text for _chunk_id, chunk_text in candidates[:k]]
+    hybrid results already arrived in, just truncating to k and dropping the
+    id. Used so these tests exercise the SQL/RRF logic in isolation,
+    deterministically, without depending on the real reranker."""
+    return [(src, chunk_text) for _chunk_id, src, chunk_text in candidates[:k]]
 
 
 def _cleanup():
@@ -74,8 +74,8 @@ def test_retrieval_never_crosses_tenants(monkeypatch):
     try:
         results = retrieve_chunks(tenant_a_id, "chunk", _vector(0), k=5)
         assert len(results) == 2
-        assert all("tenant A" in r for r in results)
-        assert not any("tenant B" in r for r in results)
+        assert all("tenant A" in text for _src, text in results)
+        assert not any("tenant B" in text for _src, text in results)
     finally:
         _cleanup()
 
@@ -85,19 +85,13 @@ def test_retrieval_orders_by_similarity_when_no_keyword_signal(monkeypatch):
     _cleanup()
     tenant_a_id, _ = _seed()
     try:
-        # "xyz" matches no chunk's text, so full-text search contributes nothing
-        # to the fusion -- ordering comes entirely from vector similarity.
         results = retrieve_chunks(tenant_a_id, "xyz", _vector(0), k=1)
-        assert results == ["tenant A chunk 0"]
+        assert results == [("bio.md", "tenant A chunk 0")]
     finally:
         _cleanup()
 
 
 def test_fulltext_signal_can_outrank_pure_vector_similarity(monkeypatch):
-    """A chunk with a strong keyword match but a vector far from the query
-    embedding still wins the top spot once fused with a chunk that only has
-    vector similarity going for it -- proving hybrid fusion actually combines
-    both signals rather than one silently dominating."""
     monkeypatch.setattr(retrieval, "rerank_chunks", _passthrough_rerank)
     _cleanup()
     create_tables()
@@ -115,7 +109,7 @@ def test_fulltext_signal_can_outrank_pure_vector_similarity(monkeypatch):
                 EmbeddingChunk(
                     tenant_id=tenant.id, source_file="bio.md", chunk_index=1,
                     chunk_text="the tavern has a dedicated karaoke night",
-                    embedding=_vector(500),  # orthogonal to the query vector below
+                    embedding=_vector(500),
                 ),
             ]
         )
@@ -125,19 +119,15 @@ def test_fulltext_signal_can_outrank_pure_vector_similarity(monkeypatch):
         session.close()
 
     try:
-        # Query vector exactly matches chunk 0's embedding, so pure vector
-        # search alone would return chunk 0 first. The karaoke chunk only
-        # wins because it also matches the full-text query.
         results = retrieve_chunks(tenant_id, "karaoke night", _vector(0), k=1)
-        assert results == ["the tavern has a dedicated karaoke night"]
+        assert results == [("bio.md", "the tavern has a dedicated karaoke night")]
     finally:
         _cleanup()
 
 
 def test_reranker_is_actually_invoked_end_to_end():
     """No monkeypatch here -- proves the real cross-encoder is wired into
-    retrieve_chunks, not just the passthrough used above. Downloads the model
-    on first run (network + local cache)."""
+    retrieve_chunks. Downloads the model on first run (network + local cache)."""
     _cleanup()
     create_tables()
     session = SessionLocal()
@@ -148,12 +138,12 @@ def test_reranker_is_actually_invoked_end_to_end():
         session.add_all(
             [
                 EmbeddingChunk(
-                    tenant_id=tenant.id, source_file="bio.md", chunk_index=0,
+                    tenant_id=tenant.id, source_file="about.md", chunk_index=0,
                     chunk_text="We are open from 5pm to 10pm Tuesday through Sunday.",
                     embedding=_vector(0),
                 ),
                 EmbeddingChunk(
-                    tenant_id=tenant.id, source_file="bio.md", chunk_index=1,
+                    tenant_id=tenant.id, source_file="about.md", chunk_index=1,
                     chunk_text="Our head chef previously worked in Lyon, France.",
                     embedding=_vector(1),
                 ),
@@ -166,6 +156,6 @@ def test_reranker_is_actually_invoked_end_to_end():
 
     try:
         results = retrieve_chunks(tenant_id, "What are your hours?", _vector(0), k=1)
-        assert results == ["We are open from 5pm to 10pm Tuesday through Sunday."]
+        assert results == [("about.md", "We are open from 5pm to 10pm Tuesday through Sunday.")]
     finally:
         _cleanup()

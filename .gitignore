@@ -12,5 +12,6 @@ frontend/.vite/
 .DS_Store
 
 .worktrees/
+.claude/worktrees/
 
 backend/logs/

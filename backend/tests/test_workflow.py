@@ -39,7 +39,7 @@ def _patch_common(monkeypatch, chat_contents: list):
 
     monkeypatch.setattr(workflow, "_client", fake_client)
     monkeypatch.setattr(workflow, "embed_texts", fake_embed_texts)
-    monkeypatch.setattr(workflow, "retrieve_chunks", lambda tenant_id, query_text, vec, **kw: ["some background chunk"])
+    monkeypatch.setattr(workflow, "retrieve_chunks", lambda tenant_id, query_text, vec, **kw: [("bio.md", "some background chunk")])
     monkeypatch.setattr(workflow, "get_custom_instructions", lambda: "")
     return fake_chat_api
 
@@ -55,15 +55,41 @@ def test_answers_directly_when_critique_passes(monkeypatch):
 
 
 def test_retries_exactly_once_when_critique_fails(monkeypatch):
-    # order: classify, generate, critique(fail), generate(retry), (critique skipped on retry)
+    # order: classify, generate, critique(fail), generate(retry), critique(pass)
     fake_chat_api = _patch_common(
-        monkeypatch, ["hours_location", "first answer", "fail", "second answer"]
+        monkeypatch, ["hours_location", "first answer", "fail", "second answer", "pass"]
     )
 
     answer = workflow.run_chat_workflow(tenant_id=1, question="Where did you go to school?")
 
     assert answer == "second answer"
-    assert fake_chat_api.call_count == 4
+    assert fake_chat_api.call_count == 5
+
+
+def test_declines_when_retried_answer_still_fails_critique(monkeypatch):
+    # order: classify, generate, critique(fail), generate(retry), critique(fail again)
+    fake_chat_api = _patch_common(
+        monkeypatch, ["general", "first answer", "fail", "second answer", "fail"]
+    )
+
+    answer = workflow.run_chat_workflow(tenant_id=1, question="What do you do?")
+
+    assert answer == workflow.REFUSAL_MESSAGE
+    assert fake_chat_api.call_count == 5
+
+
+def test_generate_context_includes_source_attribution(monkeypatch):
+    fake_chat_api = _patch_common(monkeypatch, ["general", "first answer", "pass"])
+    monkeypatch.setattr(
+        workflow, "retrieve_chunks",
+        lambda tenant_id, query_text, vec, **kw: [("menu.md", "Margherita pizza — $17")],
+    )
+
+    workflow.run_chat_workflow(tenant_id=1, question="What pizzas do you have?")
+
+    system_prompt = fake_chat_api.call_kwargs[1]["messages"][0]["content"]
+    assert "[Source: menu.md]" in system_prompt
+    assert "Margherita pizza — $17" in system_prompt
 
 
 def test_retrieval_search_text_is_biased_by_classified_category(monkeypatch):

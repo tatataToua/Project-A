@@ -63,7 +63,7 @@ def instrument_client() -> None:
     _instrumented = True
 
 
-def _preview_for_node(node_name: str, delta: dict, prev_retry_used: bool) -> str:
+def _preview_for_node(node_name: str, delta: dict) -> str:
     """Compact, truncated one-liner for live console printing."""
     if node_name == "classify":
         return f"category={delta.get('category')}"
@@ -74,13 +74,11 @@ def _preview_for_node(node_name: str, delta: dict, prev_retry_used: bool) -> str
         snippet = answer[:70] + ("..." if len(answer) > 70 else "")
         return f'answer="{snippet}"'
     if node_name == "critique":
-        # _critique_node short-circuits with just {"needs_retry": False} both when
-        # the answer genuinely passes AND when a retry was already used -- the
-        # delta alone can't tell those apart, so we check state from just before
-        # this node ran.
-        if prev_retry_used:
-            return "skipped (retry already used)"
-        return "fail (retrying)" if delta.get("needs_retry") else "pass"
+        if delta.get("needs_retry"):
+            return "fail (retrying)"
+        if "answer" in delta:
+            return "fail (declined)"
+        return "pass"
     return str(delta)
 
 
@@ -125,7 +123,6 @@ def trace_turn(tenant_id: int, question: str, on_node: Optional[NodeCallback] = 
         for node_name, delta in update.items():
             elapsed = now - last_ts
             last_ts = now
-            prev_retry_used = final_state.get("retry_used", False)
 
             tokens_this_node = list(_usage_buffer)
             _usage_buffer.clear()
@@ -138,7 +135,7 @@ def trace_turn(tenant_id: int, question: str, on_node: Optional[NodeCallback] = 
             totals["prompt"] += prompt_tok
             totals["completion"] += completion_tok
 
-            preview = _preview_for_node(node_name, delta, prev_retry_used)
+            preview = _preview_for_node(node_name, delta)
             if node_name == "critique":
                 critique_verdicts.append(preview)
             events.append(

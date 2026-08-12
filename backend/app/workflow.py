@@ -9,13 +9,15 @@ from app.instructions import get_custom_instructions
 from app.llm import client as _client
 from app.retrieval import retrieve_chunks
 
+REFUSAL_MESSAGE = "We don't have that information on hand — please ask a staff member directly."
+
 
 class ChatState(TypedDict):
     tenant_id: int
     question: str
     query: str
     category: str
-    chunks: list[str]
+    chunks: list[tuple[str, str]]
     answer: str
     retry_used: bool
     needs_retry: bool
@@ -60,8 +62,14 @@ def _retrieve_node(state: ChatState) -> dict:
     return {"chunks": chunks}
 
 
+def _format_context(chunks: list[tuple[str, str]]) -> str:
+    if not chunks:
+        return "(no matching restaurant information found)"
+    return "\n\n".join(f"[Source: {source_file}]\n{chunk_text}" for source_file, chunk_text in chunks)
+
+
 def _generate_node(state: ChatState) -> dict:
-    context = "\n\n".join(state["chunks"]) or "(no matching restaurant information found)"
+    context = _format_context(state["chunks"])
     system_prompt = (
         "You are the AI assistant for a restaurant, answering as the "
         "restaurant itself (first person plural -- 'we' / 'our'). Answer "
@@ -86,8 +94,7 @@ def _generate_node(state: ChatState) -> dict:
 
 
 def _critique_node(state: ChatState) -> dict:
-    if state["retry_used"]:
-        return {"needs_retry": False}
+    already_retried = state["retry_used"]
 
     try:
         completion = _client.chat.completions.create(
@@ -104,17 +111,21 @@ def _critique_node(state: ChatState) -> dict:
                     "role": "user",
                     "content": (
                         f"QUESTION: {state['question']}\n\n"
-                        f"CONTEXT: {chr(10).join(state['chunks'])}\n\n"
+                        f"CONTEXT: {chr(10).join(chunk_text for _source, chunk_text in state['chunks'])}\n\n"
                         f"ANSWER: {state['answer']}"
                     ),
                 },
             ],
         )
     except OpenAIError:
-        # We already have a usable answer -- skip the retry rather than fail the request.
+        # We already have a usable answer -- skip enforcement rather than fail the request.
         return {"needs_retry": False}
     verdict = (completion.choices[0].message.content or "pass").strip().lower()
     if verdict.startswith("fail"):
+        if already_retried:
+            # The retried answer still isn't grounded -- decline rather than
+            # return an answer we can't stand behind.
+            return {"needs_retry": False, "answer": REFUSAL_MESSAGE}
         return {
             "needs_retry": True,
             "retry_used": True,

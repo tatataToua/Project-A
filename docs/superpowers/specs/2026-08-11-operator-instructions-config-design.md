@@ -19,6 +19,26 @@ covers why that's speculative with one tenant live). It's a global, operator-fac
 tuning knob, analogous in spirit to `backend/.env` — a local file that changes runtime
 behavior, gitignored, not shipped as tenant content.
 
+## Non-goals (captured as backlog, not in this change)
+
+The design below is deliberately scaled to a single trusted operator editing a local
+file — not a production/multi-admin "enterprise-grade" prompt-config system. If this
+ever needs to grow up, the backlog is:
+
+- **Golden Q&A regression eval on instruction changes.** Before a new
+  `instructions.txt` goes live, run a fixed set of representative questions through
+  the pipeline and diff the answers (grounding intact, allergy-safety line still
+  present, tone/scope matches intent) rather than trusting a manual spot-check. This
+  is the most valuable item on this list — worth prioritizing first if this backlog
+  is ever picked up.
+- **Audit trail / versioning.** The file is gitignored with no history; a multi-admin
+  version would store instructions in the DB with who-changed-what-when.
+- **Length/token budget guard.** No cap today on how much the operator's text can grow
+  the prompt.
+
+None of this is needed for a single local file one operator hand-edits, so it's not
+part of this change.
+
 ## Design
 
 ### 1. Instructions file

@@ -40,6 +40,7 @@ def _patch_common(monkeypatch, chat_contents: list):
     monkeypatch.setattr(workflow, "_client", fake_client)
     monkeypatch.setattr(workflow, "embed_texts", fake_embed_texts)
     monkeypatch.setattr(workflow, "retrieve_chunks", lambda tenant_id, vec, **kw: ["some background chunk"])
+    monkeypatch.setattr(workflow, "get_custom_instructions", lambda: "")
     return fake_chat_api
 
 

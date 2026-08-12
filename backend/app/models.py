@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from app.config import EMBEDDING_DIMENSIONS
@@ -34,6 +34,35 @@ class EmbeddingChunk(Base):
     embedding: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIMENSIONS), nullable=False)
 
 
+def _ensure_fulltext_search() -> None:
+    """Add the tsvector column + GIN index that back hybrid (BM25-style)
+    retrieval, if they don't already exist.
+
+    `Base.metadata.create_all()` never alters an existing table, so a database
+    that already has an `embeddings` table from before this change needs this
+    explicit step. It's a Postgres GENERATED ALWAYS AS ... STORED column, so
+    Postgres computes `chunk_tsv` for every existing row as part of the ALTER
+    TABLE itself -- no separate backfill/re-ingest step needed. Idempotent via
+    IF NOT EXISTS, so safe to run on every `create_tables()` call.
+    """
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                ALTER TABLE embeddings
+                ADD COLUMN IF NOT EXISTS chunk_tsv tsvector
+                GENERATED ALWAYS AS (to_tsvector('english', chunk_text)) STORED
+                """
+            )
+        )
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS embeddings_chunk_tsv_idx "
+                "ON embeddings USING GIN (chunk_tsv)"
+            )
+        )
+
+
 def create_tables() -> None:
     # `create_all` only creates missing tables — it never migrates an existing one.
     # If you change EMBEDDING_DIMENSIONS after the `embeddings` table already exists,
@@ -45,3 +74,4 @@ def create_tables() -> None:
     # required on a fresh database where the extension hasn't been enabled yet.
     check_connection()
     Base.metadata.create_all(engine)
+    _ensure_fulltext_search()

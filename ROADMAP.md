@@ -41,18 +41,47 @@ business validation (no real customer, no paying tenant yet — see `BUSINESS.md
     original Phase 3 scope was explicitly deferred — see the design spec's Scope
     Decision / Non-goals. Revisit if/when a tenant's content benefits from live
     structured data instead of only static markdown.
+- [ ] **Phase 3.5 — Production Hardening.** See
+      `docs/superpowers/specs/2026-08-12-phase3.5-production-hardening-design.md` for
+      the full design. Inserted ahead of Phase 4 — closes the "demo vs. production RAG"
+      gap on what Phase 3 already built, rather than adding new surface area.
+  - Hybrid retrieval: Postgres full-text search (`tsvector`/`ts_rank`) combined with the
+    existing pgvector cosine search via reciprocal rank fusion, still tenant-filtered.
+  - Cross-encoder reranker (`sentence-transformers`) between retrieval and generation.
+  - Citation enforcement: retrieved chunks carry source attribution; if a retried answer
+    still fails the groundedness critique, the workflow returns an explicit decline
+    instead of an ungrounded answer.
+  - Per-tenant golden Q&A eval set (`docs/content/tenants/<slug>/eval/golden_qa.yaml`,
+    drafted then human-verified) scored with **Ragas** (faithfulness, context
+    precision/recall, answer relevancy) — supersedes the DeepEval bullet previously
+    listed under Phase 5.
+  - First CI workflow in this repo: eval set runs on every PR against the hosted Gemini
+    free tier, build fails below a faithfulness threshold.
+  - Observability extension: aggregate the existing per-node JSONL tracer
+    (`tracing.py` → `chat_trace.log`) into P50/P95 latency, cost/request, citation
+    coverage, and failure rate — no new external tracing service.
+  - Local-model benchmark: sequential comparison (tokens/sec, TTFT) across 3 Ollama
+    models, appended to `METRICS.md`.
+  - Classify-node hardened to constrained JSON output (Pydantic-validated, one retry on
+    invalid) instead of a freeform string.
+  - Prompts extracted from `workflow.py` into a dedicated module so prompt changes are
+    visible as their own diffs.
+  - **Explicitly out of scope for this repo:** fine-tuning (LoRA/QLoRA/DPO) and a
+    realtime voice/multimodal assistant — real portfolio-worthy projects, but genuine
+    departures from this product's shape rather than extensions of it. See the design
+    spec's "Why this exists" for the full reasoning.
 - [ ] **Phase 4 — Scaling.**
   - Dockerize the FastAPI backend (and optionally serve the built widget from it).
   - Deploy to AWS (ECS Fargate or App Runner) with a real public URL.
   - Embed the widget on your actual personal site.
   - Add Redis caching for repeated/common questions to cut latency and OpenAI cost.
 - [ ] **Phase 5 — Strategic AI Operations (LLMOps).**
-  - DeepEval test suite against a golden set of Q&A about you — catches hallucinations
-    and regressions as the prompt/retrieval logic changes.
+  - ~~DeepEval test suite against a golden set of Q&A about you~~ — moved to Phase 3.5
+    (Ragas, not DeepEval; see that phase's design spec for why).
   - PostHog (or Amplitude) analytics: what visitors ask, where they drop off.
   - Cost governance / model routing: a cheap model (e.g. `gpt-4o-mini`) for simple
     FAQ-style questions, escalate to a stronger model for nuanced ones, log cost per
-    conversation.
+    conversation — builds on Phase 3.5's cost-per-request groundwork.
 
 ## How to pick this back up
 

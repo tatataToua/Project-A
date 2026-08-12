@@ -1,5 +1,4 @@
 import logging
-import time
 
 from fastapi import Depends, FastAPI, HTTPException
 from openai import OpenAIError
@@ -18,6 +17,7 @@ from app.db import SessionLocal
 from app.models import EmbeddingChunk, Tenant
 
 logging.basicConfig(level=logging.INFO)
+logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger("askme")
 
 tracing.instrument_client()
@@ -70,7 +70,6 @@ def chat(
     finally:
         session.close()
 
-    start = time.monotonic()
     try:
         answer, _ = tracing.trace_turn(tenant_id, req.message)
     except (OpenAIError, SQLAlchemyError):
@@ -82,7 +81,4 @@ def chat(
             detail="Could not reach the assistant right now — try again shortly.",
         )
 
-    logger.info(
-        "chat request user=%s tenant=%s elapsed=%.2fs", user["email"], tenant_slug, time.monotonic() - start
-    )
     return ChatResponse(reply=answer)

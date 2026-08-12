@@ -656,7 +656,7 @@ No code changes — this task confirms the happy path still works against real c
 and a real LLM/embedding provider, per the Phase 3.5 spec's success criteria. Nothing
 to commit.
 
-- [ ] **Step 1: Re-ingest the demo tenant** (picks up the new full-text column via the
+- [x] **Step 1: Re-ingest the demo tenant** (picks up the new full-text column via the
   existing ingest path — no ingest.py changes were needed since the column is
   Postgres-generated)
 
@@ -669,7 +669,9 @@ configured with either Gemini or Ollama):
 
 Expected: prints `Ingested N chunks for tenant 'two-owls-tavern'` with no errors.
 
-- [ ] **Step 2: Run a real chat round-trip**
+Result: `Ingested 34 chunks for tenant 'two-owls-tavern'`.
+
+- [x] **Step 2: Run a real chat round-trip**
 
 Start the backend (`uvicorn app.main:app --reload --port 8000` from `backend/`) and the
 frontend (`npm run dev` from `frontend/`), then open `http://localhost:5173`, sign in,
@@ -679,9 +681,17 @@ karaoke night?" if that's in the demo content, or any menu/policy question).
 Expected: answers return normally, grounded in the tenant's content, no errors in
 either terminal.
 
-- [ ] **Step 3: Confirm the full test suite still passes**
+Result: verified via `python -m app.trace_chat two-owls-tavern` (runs the real graph
+against the real Gemini/embedding provider and reranker, bypassing only the browser
+OAuth login, not the workflow) instead of the browser — "What are your hours?" and "Do
+you have any gluten-free menu options?" both answered correctly, grounded in retrieved
+chunks, first-pass critique, no errors.
+
+- [x] **Step 3: Confirm the full test suite still passes**
 
 Run (from `backend/`): `.venv\Scripts\python.exe -m pytest -v`
 Expected: all tests PASS. Report the final count (e.g. "38/38 passing") back — this
 number replaces the "29/29 passing" baseline in `METRICS.md` next time that ledger is
 updated (not part of this plan — `METRICS.md` updates are their own future step).
+
+Result: 41/41 passing.

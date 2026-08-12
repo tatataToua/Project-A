@@ -26,12 +26,12 @@ def _get_model() -> "CrossEncoder":
     return _model
 
 
-def rerank_chunks(query_text: str, candidates: list[tuple[int, str]], k: int) -> list[str]:
+def rerank_chunks(query_text: str, candidates: list[tuple[int, str, str]], k: int) -> list[tuple[str, str]]:
     """Rescore (query, chunk_text) pairs with a cross-encoder and return the
-    top-k chunk texts, best first."""
+    top-k (source_file, chunk_text) tuples, best first."""
     if not candidates:
         return []
-    pairs = [(query_text, chunk_text) for _chunk_id, chunk_text in candidates]
+    pairs = [(query_text, chunk_text) for _chunk_id, _source_file, chunk_text in candidates]
     scores = _get_model().predict(pairs)
     ranked = sorted(zip(candidates, scores), key=lambda pair: pair[1], reverse=True)
-    return [chunk_text for (_chunk_id, chunk_text), _score in ranked[:k]]
+    return [(source_file, chunk_text) for (_chunk_id, source_file, chunk_text), _score in ranked[:k]]

@@ -1,13 +1,32 @@
-from typing import TypedDict
+import json
+from typing import Literal, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 from openai import OpenAIError
+from pydantic import BaseModel, ValidationError
 
 from app.config import GEMINI_MODEL
 from app.embeddings import embed_texts
 from app.instructions import get_custom_instructions
 from app.llm import client as _client
 from app.retrieval import retrieve_chunks
+
+REFUSAL_MESSAGE = "We don't have that information on hand — please ask a staff member directly."
+
+_CLASSIFY_SYSTEM_PROMPT = (
+    "Classify the user's question into exactly one category:\n"
+    "'menu' - dishes, prices, ingredients, allergens, drinks.\n"
+    "'hours_location' - hours, address, parking, reservations.\n"
+    "'policies' - dress code, gratuity/split-check, dietary "
+    "accommodation, pets, private events, gift cards, holiday closures.\n"
+    "'general' - anything else.\n"
+    'Respond with ONLY a JSON object of the form {"category": "<one of the above>"} '
+    "-- no other text."
+)
+
+
+class _ClassifyResult(BaseModel):
+    category: Literal["menu", "hours_location", "policies", "general"]
 
 
 class ChatState(TypedDict):
@@ -16,40 +35,53 @@ class ChatState(TypedDict):
     query: str
     category: str
     search_text: str
-    chunks: list[str]
+    chunks: list[tuple[str, str]]
     answer: str
     retry_used: bool
     needs_retry: bool
 
 
-def _classify_node(state: ChatState) -> dict:
+def _parse_classify_response(content: str | None) -> str | None:
+    """Returns the validated category, or None if content isn't valid JSON
+    matching the schema."""
+    if not content:
+        return None
     try:
-        completion = _client.chat.completions.create(
-            model=GEMINI_MODEL,
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "Classify the user's question into exactly one category:\n"
-                        "'menu' - dishes, prices, ingredients, allergens, drinks.\n"
-                        "'hours_location' - hours, address, parking, reservations.\n"
-                        "'policies' - dress code, gratuity/split-check, dietary "
-                        "accommodation, pets, private events, gift cards, holiday closures.\n"
-                        "'general' - anything else.\n"
-                        "Respond with only that word."
-                    ),
-                },
-                {"role": "user", "content": state["question"]},
-            ],
-        )
-    except OpenAIError:
-        # Classification only biases the retrieval query -- nothing depends on it,
-        # so degrade to the same "general" fallback used for an unusable answer.
-        return {"category": "general"}
-    category = (completion.choices[0].message.content or "general").strip().lower()
-    if category not in ("menu", "hours_location", "policies", "general"):
-        category = "general"
-    return {"category": category}
+        data = json.loads(content)
+        result = _ClassifyResult.model_validate(data)
+    except (json.JSONDecodeError, ValidationError, TypeError):
+        return None
+    return result.category
+
+
+def _classify_node(state: ChatState) -> dict:
+    messages = [
+        {"role": "system", "content": _CLASSIFY_SYSTEM_PROMPT},
+        {"role": "user", "content": state["question"]},
+    ]
+    for _attempt in range(2):
+        try:
+            completion = _client.chat.completions.create(model=GEMINI_MODEL, messages=messages)
+        except OpenAIError:
+            # Classification only biases the retrieval query -- nothing depends on it,
+            # so degrade to the same "general" fallback used for an unusable answer.
+            return {"category": "general"}
+        content = completion.choices[0].message.content
+        category = _parse_classify_response(content)
+        if category is not None:
+            return {"category": category}
+        # Invalid output -- retry once with a corrective nudge before falling back.
+        messages = messages + [
+            {"role": "assistant", "content": content or ""},
+            {
+                "role": "user",
+                "content": (
+                    "That wasn't valid JSON matching the schema. Respond with ONLY "
+                    'the JSON object, e.g. {"category": "menu"}.'
+                ),
+            },
+        ]
+    return {"category": "general"}
 
 
 def _retrieve_node(state: ChatState) -> dict:
@@ -61,8 +93,14 @@ def _retrieve_node(state: ChatState) -> dict:
     return {"chunks": chunks, "search_text": search_text}
 
 
+def _format_context(chunks: list[tuple[str, str]]) -> str:
+    if not chunks:
+        return "(no matching restaurant information found)"
+    return "\n\n".join(f"[Source: {source_file}]\n{chunk_text}" for source_file, chunk_text in chunks)
+
+
 def _generate_node(state: ChatState) -> dict:
-    context = "\n\n".join(state["chunks"]) or "(no matching restaurant information found)"
+    context = _format_context(state["chunks"])
     system_prompt = (
         "You are the AI assistant for a restaurant, answering as the "
         "restaurant itself (first person plural -- 'we' / 'our'). Answer "
@@ -87,8 +125,7 @@ def _generate_node(state: ChatState) -> dict:
 
 
 def _critique_node(state: ChatState) -> dict:
-    if state["retry_used"]:
-        return {"needs_retry": False}
+    already_retried = state["retry_used"]
 
     try:
         completion = _client.chat.completions.create(
@@ -105,17 +142,21 @@ def _critique_node(state: ChatState) -> dict:
                     "role": "user",
                     "content": (
                         f"QUESTION: {state['question']}\n\n"
-                        f"CONTEXT: {chr(10).join(state['chunks'])}\n\n"
+                        f"CONTEXT: {chr(10).join(chunk_text for _source, chunk_text in state['chunks'])}\n\n"
                         f"ANSWER: {state['answer']}"
                     ),
                 },
             ],
         )
     except OpenAIError:
-        # We already have a usable answer -- skip the retry rather than fail the request.
+        # We already have a usable answer -- skip enforcement rather than fail the request.
         return {"needs_retry": False}
     verdict = (completion.choices[0].message.content or "pass").strip().lower()
     if verdict.startswith("fail"):
+        if already_retried:
+            # The retried answer still isn't grounded -- decline rather than
+            # return an answer we can't stand behind.
+            return {"needs_retry": False, "answer": REFUSAL_MESSAGE}
         return {
             "needs_retry": True,
             "retry_used": True,

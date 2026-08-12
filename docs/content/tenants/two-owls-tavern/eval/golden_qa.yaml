@@ -1,0 +1,133 @@
+# Golden Q&A evaluation set for the two-owls-tavern tenant.
+#
+# Drafted from docs/content/tenants/two-owls-tavern/{about,faq,menu}.md by
+# Claude, then verified by a human before being trusted as ground truth (per
+# the Phase 3.5 design spec's golden-eval-set procedure). Scored by
+# app/eval_rag.py via Ragas faithfulness against the live retrieval + generate
+# pipeline. Re-verify this file whenever the tenant's content changes.
+#
+# Format: one entry per question. `expected_answer` is the reference answer
+# used as ground truth (not asserted verbatim -- Ragas scores whether the
+# system's actual answer is faithful to retrieved context, using this as a
+# relevancy reference). `source_files` names which content file(s) the answer
+# should be grounded in, for human sanity-checking, not consumed by the score.
+
+- question: What are your hours on Saturday?
+  expected_answer: 11:30 AM to 10:00 PM.
+  source_files: [about.md]
+
+- question: What are your hours on Monday?
+  expected_answer: Closed on Mondays.
+  source_files: [about.md]
+
+- question: Where is Two Owls Tavern located?
+  expected_answer: 214 Elm Street, Millbrook, OR.
+  source_files: [about.md]
+
+- question: Do I need a reservation?
+  expected_answer: Walk-ins are always welcome. Reservations are recommended for parties of 5 or more, and for any party dining on a Friday or Saturday night.
+  source_files: [faq.md, about.md]
+
+- question: Where can I park?
+  expected_answer: There's a small 12-space lot behind the building, entrance off the alley on Birch Street, plus metered street parking along Elm. After 6pm on Fridays/Saturdays, street parking or the public garage two blocks north on 3rd Avenue is usually easier.
+  source_files: [faq.md, about.md]
+
+- question: Is there a dress code?
+  expected_answer: No, Two Owls Tavern is casual -- come as you are.
+  source_files: [faq.md, about.md]
+
+- question: Do you sell gift cards?
+  expected_answer: Yes, gift cards are available in any denomination at the host stand or online, and they never expire.
+  source_files: [faq.md, about.md]
+
+- question: Can you host private events?
+  expected_answer: Yes, the back room seats up to 20 and can be booked for private dinners, rehearsal dinners, or small work events. Two weeks' notice is typically requested for parties over 12.
+  source_files: [faq.md]
+
+- question: Do you accommodate dietary restrictions?
+  expected_answer: Yes, vegetarian, vegan, and gluten-sensitive diets are regularly accommodated. Food allergies should be told directly to the server rather than relying on menu notes.
+  source_files: [faq.md, about.md]
+
+- question: Is the patio dog-friendly?
+  expected_answer: Yes, the covered, heated patio welcomes dogs, and water bowls are kept on hand.
+  source_files: [faq.md, about.md]
+
+- question: Do you split checks?
+  expected_answer: For parties of 7 or fewer, yes. For parties of 8 or more, an 18% gratuity is added automatically and the check can be split at most 4 ways.
+  source_files: [faq.md, about.md]
+
+- question: Do you offer catering?
+  expected_answer: No off-site catering, but takeout is available for most of the menu by calling ahead.
+  source_files: [faq.md]
+
+- question: What are your holiday hours?
+  expected_answer: Closed on Thanksgiving, Christmas Day, and New Year's Day. Hours may be shortened around other holidays, so call ahead.
+  source_files: [faq.md, about.md]
+
+- question: Who founded Two Owls Tavern?
+  expected_answer: Siblings Mara and Theo Whitfield.
+  source_files: [about.md]
+
+- question: When did Two Owls Tavern open?
+  expected_answer: 2015.
+  source_files: [about.md]
+
+- question: Why is it called Two Owls Tavern?
+  expected_answer: A pair of great horned owls nested in the building's eaves during construction.
+  source_files: [about.md]
+
+- question: What kind of food do you serve?
+  expected_answer: New American tavern food -- wood-fired pizzas, roasted vegetables, seasonal entrees, and a Pacific Northwest-heavy wine and beer program.
+  source_files: [about.md]
+
+- question: Do you have high chairs for kids?
+  expected_answer: Yes, high chairs and booster seats are available on request.
+  source_files: [about.md]
+
+- question: How much are the wood-roasted marrow bones?
+  expected_answer: $16.
+  source_files: [menu.md]
+
+- question: What's in the Two Owls Chowder?
+  expected_answer: Clam and smoked bacon chowder with fingerling potatoes and thyme, served with grilled bread. Contains shellfish, dairy, and gluten.
+  source_files: [menu.md]
+
+- question: Do you have vegan pizza options?
+  expected_answer: Yes, the Roasted Vegetable pizza (no cheese) is vegan.
+  source_files: [menu.md]
+
+- question: What's in the Margherita pizza?
+  expected_answer: San Marzano tomato, fresh mozzarella, basil, and olive oil.
+  source_files: [menu.md]
+
+- question: Is the Wood-Fired Half Chicken gluten-free?
+  expected_answer: Yes, it's gluten-free and contains none of the major allergens as prepared.
+  source_files: [menu.md]
+
+- question: What allergens are in the Cast-Iron Trout?
+  expected_answer: Fish, dairy, and tree nuts.
+  source_files: [menu.md]
+
+- question: Can the Wild Mushroom Risotto be made vegan?
+  expected_answer: Yes, on request, by omitting the parmesan.
+  source_files: [menu.md]
+
+- question: What desserts do you have?
+  expected_answer: Olive Oil Cake, Wood-Oven Fig & Honey Crostata, and Affogato.
+  source_files: [menu.md]
+
+- question: How much is the affogato?
+  expected_answer: $7.
+  source_files: [menu.md]
+
+- question: What beer do you have?
+  expected_answer: 8 rotating taps, mostly Oregon and Washington breweries, $7-9 per pint.
+  source_files: [menu.md]
+
+- question: Do you have non-alcoholic drinks?
+  expected_answer: Yes, house-made sodas for $5 and coffee/espresso drinks for $3-5.50.
+  source_files: [menu.md]
+
+- question: How much is the braised short rib and is it gluten-free?
+  expected_answer: $32, and yes, it's gluten-free.
+  source_files: [menu.md]

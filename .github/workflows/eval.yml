@@ -1,0 +1,71 @@
+name: RAG Eval Gate
+
+on:
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'docs/content/**'
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: askme
+          POSTGRES_PASSWORD: askme
+          POSTGRES_DB: askme
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U askme"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql+psycopg://askme:askme@localhost:5432/askme
+      GEMINI_BASE_URL: http://localhost:11434/v1
+      GEMINI_MODEL: qwen2.5:7b-instruct
+      GEMINI_EMBEDDING_MODEL: nomic-embed-text
+      GEMINI_API_KEY: unused
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ hashFiles('backend/requirements.txt') }}
+
+      - name: Install backend dependencies
+        run: pip install -r backend/requirements.txt
+
+      - name: Install Ollama
+        run: curl -fsSL https://ollama.com/install.sh | sh
+
+      - name: Cache Ollama models
+        uses: actions/cache@v4
+        with:
+          path: ~/.ollama/models
+          key: ollama-models-qwen2.5-7b-instruct-nomic-embed-text
+
+      - name: Start Ollama and pull models
+        run: |
+          ollama serve &
+          sleep 5
+          ollama pull qwen2.5:7b-instruct
+          ollama pull nomic-embed-text
+
+      - name: Ingest eval tenant content
+        working-directory: backend
+        run: python -m app.ingest two-owls-tavern
+
+      - name: Run golden eval set (Ragas faithfulness gate)
+        working-directory: backend
+        run: python -m app.eval_rag --tenant two-owls-tavern

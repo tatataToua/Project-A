@@ -52,6 +52,27 @@ npm run build       # production build to frontend/dist
 docker compose up -d   # Postgres 16 + pgvector, askme/askme/askme, port 5432
 ```
 
+### Full stack via Docker (backend + Postgres)
+
+```bash
+docker compose up -d --build     # Postgres + backend, backend on :8000
+docker compose exec backend python -m app.ingest two-owls-tavern
+```
+
+Requires `backend/.env` to exist first (see env var table below) — `docker-compose.yml`
+loads it via `env_file` and overrides `DATABASE_URL` to point at the `postgres`
+service hostname. It also bind-mounts `docs/content` read-only into the container at
+`/docs/content` (where `config.py`'s `CONTENT_DIR` resolves inside the container, since
+the image only copies `backend/app/`), so ingest sees the same tenant content without
+baking it into the image or rebuilding after a content edit. The frontend dev server
+(`npm run dev`, run natively) proxies to this containerized backend exactly as it does
+to a native `uvicorn --reload` one.
+
+If `GEMINI_BASE_URL` points at a local Ollama server (`http://localhost:11434/v1`),
+note that inside the container `localhost` means the container itself, not the host —
+override it for containerized calls with `http://host.docker.internal:11434/v1`, e.g.
+`docker compose exec -e GEMINI_BASE_URL=http://host.docker.internal:11434/v1 backend python -m app.ingest two-owls-tavern`.
+
 Always access the app via `http://localhost:5173` (not `127.0.0.1`) — the session
 cookie's same-origin behavior depends on frontend and backend both using the
 `localhost` hostname consistently.

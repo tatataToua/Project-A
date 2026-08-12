@@ -29,8 +29,13 @@ def _classify_node(state: ChatState) -> dict:
                 {
                     "role": "system",
                     "content": (
-                        "Classify the user's question into exactly one category: "
-                        "'background', 'project', or 'general'. Respond with only that word."
+                        "Classify the user's question into exactly one category:\n"
+                        "'menu' - dishes, prices, ingredients, allergens, drinks.\n"
+                        "'hours_location' - hours, address, parking, reservations.\n"
+                        "'policies' - dress code, gratuity/split-check, dietary "
+                        "accommodation, pets, private events, gift cards, holiday closures.\n"
+                        "'general' - anything else.\n"
+                        "Respond with only that word."
                     ),
                 },
                 {"role": "user", "content": state["question"]},
@@ -41,7 +46,7 @@ def _classify_node(state: ChatState) -> dict:
         # so degrade to the same "general" fallback used for an unusable answer.
         return {"category": "general"}
     category = (completion.choices[0].message.content or "general").strip().lower()
-    if category not in ("background", "project", "general"):
+    if category not in ("menu", "hours_location", "policies", "general"):
         category = "general"
     return {"category": category}
 
@@ -56,12 +61,14 @@ def _retrieve_node(state: ChatState) -> dict:
 
 
 def _generate_node(state: ChatState) -> dict:
-    context = "\n\n".join(state["chunks"]) or "(no matching background information found)"
+    context = "\n\n".join(state["chunks"]) or "(no matching restaurant information found)"
     system_prompt = (
-        "You are an AI assistant speaking on behalf of the person described "
-        "below. Answer in first person, grounded only in the provided "
-        "background, and say when something isn't covered by it.\n\n"
-        f"--- BACKGROUND ---\n{context}"
+        "You are the AI assistant for a restaurant, answering as the "
+        "restaurant itself (first person plural -- 'we' / 'our'). Answer "
+        "grounded only in the provided context, and say when something "
+        "isn't covered by it. Never assert with certainty that a dish is "
+        "safe for a given allergy -- defer to asking staff directly.\n\n"
+        f"--- CONTEXT ---\n{context}"
     )
     custom_instructions = get_custom_instructions()
     if custom_instructions:

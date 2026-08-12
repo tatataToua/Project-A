@@ -57,7 +57,7 @@ def test_answers_directly_when_critique_passes(monkeypatch):
 def test_retries_exactly_once_when_critique_fails(monkeypatch):
     # order: classify, generate, critique(fail), generate(retry), (critique skipped on retry)
     fake_chat_api = _patch_common(
-        monkeypatch, ["background", "first answer", "fail", "second answer"]
+        monkeypatch, ["hours_location", "first answer", "fail", "second answer"]
     )
 
     answer = workflow.run_chat_workflow(tenant_id=1, question="Where did you go to school?")
@@ -67,12 +67,12 @@ def test_retries_exactly_once_when_critique_fails(monkeypatch):
 
 
 def test_retrieval_search_text_is_biased_by_classified_category(monkeypatch):
-    fake_chat_api = _patch_common(monkeypatch, ["background", "first answer", "pass"])
+    fake_chat_api = _patch_common(monkeypatch, ["hours_location", "first answer", "pass"])
 
     workflow.run_chat_workflow(tenant_id=1, question="Where did you go to school?")
 
     [search_text] = fake_chat_api.embed_inputs[0]
-    assert search_text == "[background] Where did you go to school?"
+    assert search_text == "[hours_location] Where did you go to school?"
 
 
 def test_classify_failure_degrades_to_general_and_still_answers(monkeypatch):
@@ -117,7 +117,7 @@ def test_generate_appends_custom_instructions_when_present(monkeypatch):
     system_prompt = fake_chat_api.call_kwargs[1]["messages"][0]["content"]
     assert "ADDITIONAL OPERATOR INSTRUCTIONS" in system_prompt
     assert "Keep answers short." in system_prompt
-    assert system_prompt.index("--- BACKGROUND ---") < system_prompt.index(
+    assert system_prompt.index("--- CONTEXT ---") < system_prompt.index(
         "--- ADDITIONAL OPERATOR INSTRUCTIONS ---"
     )
 

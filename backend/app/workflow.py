@@ -56,7 +56,7 @@ def _retrieve_node(state: ChatState) -> dict:
     if state["category"]:
         search_text = f"[{state['category']}] {search_text}"
     [query_vector] = embed_texts([search_text])
-    chunks = retrieve_chunks(state["tenant_id"], query_vector)
+    chunks = retrieve_chunks(state["tenant_id"], search_text, query_vector)
     return {"chunks": chunks}
 
 

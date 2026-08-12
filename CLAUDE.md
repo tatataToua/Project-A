@@ -130,6 +130,8 @@ including a local Ollama server (`GEMINI_BASE_URL=http://localhost:11434/v1`).
 | `GEMINI_EMBEDDING_MODEL` | Embedding model, defaults to `gemini-embedding-001` (`nomic-embed-text` for Ollama) |
 | `EMBEDDING_DIMENSIONS` | Vector width, defaults to `768`. Must match the existing `embeddings` table — changing it later needs `DROP TABLE embeddings;` and a re-ingest |
 | `RETRIEVAL_TOP_K` | Chunks retrieved per question, defaults to `5` |
+| `RETRIEVAL_OVERFETCH_K` | Candidates fetched per branch (vector + full-text) before fusion/reranking, defaults to `15` |
+| `RERANK_MODEL` | Cross-encoder model for reranking, defaults to `cross-encoder/ms-marco-MiniLM-L-6-v2` |
 | `DATABASE_URL` | Defaults to the docker-compose Postgres |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | From a Google Cloud Console OAuth client (Web application), redirect URI `http://localhost:8000/auth/callback` |
 | `SESSION_SECRET` | Signs the session cookie — generate with `python -c "import secrets; print(secrets.token_hex(32))"` |

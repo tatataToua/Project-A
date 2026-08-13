@@ -157,6 +157,7 @@ including a local Ollama server (`GEMINI_BASE_URL=http://localhost:11434/v1`).
 | `RERANK_MODEL` | Cross-encoder model for reranking, defaults to `cross-encoder/ms-marco-MiniLM-L-6-v2` |
 | `DATABASE_URL` | Defaults to the docker-compose Postgres |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | From a Google Cloud Console OAuth client (Web application), redirect URI `http://localhost:8000/auth/callback` |
-| `SESSION_SECRET` | Signs the session cookie — generate with `python -c "import secrets; print(secrets.token_hex(32))"` |
+| `SESSION_SECRET` | Signs the session cookie — generate with `python -c "import secrets; print(secrets.token_hex(32))"`. Must be ≥ 32 chars; if unset/too short the app uses a random per-process key in dev and refuses to start when `SESSION_COOKIE_SECURE=true` |
+| `CHAT_MESSAGE_MAX_LENGTH` | Longest accepted `/chat` message, defaults to `2000` characters |
 | `FRONTEND_URL` | Where `/auth/callback` redirects after login; defaults to `http://localhost:5173` |
 | `SESSION_COOKIE_SECURE` | `false` for local http dev, `true` once served over https |

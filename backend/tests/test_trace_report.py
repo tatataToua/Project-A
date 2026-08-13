@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from app import trace_report
@@ -78,3 +80,70 @@ def test_load_records_reads_jsonl(tmp_path):
 
 def test_load_records_missing_file_returns_empty(tmp_path):
     assert trace_report.load_records(tmp_path / "does-not-exist.log") == []
+
+
+def _write_log(tmp_path, records):
+    log_path = tmp_path / "chat_trace.log"
+    log_path.write_text(
+        "".join(json.dumps(record) + "\n" for record in records), encoding="utf-8"
+    )
+    return log_path
+
+
+def test_main_prints_summary_for_explicit_model(tmp_path, monkeypatch, capsys):
+    log_path = _write_log(
+        tmp_path,
+        [
+            {
+                "total_latency_s": 2.0,
+                "tokens": {"prompt": 1000, "completion": 1000},
+                "critique_verdicts": ["pass"],
+                "retried": False,
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        "sys.argv",
+        ["trace_report", "--log", str(log_path), "--model", "gemini-flash-latest"],
+    )
+
+    trace_report.main()
+
+    out = capsys.readouterr().out
+    assert "Model (for cost lookup): gemini-flash-latest" in out
+    assert "Turns analyzed: 1" in out
+    assert "Latency: p50=2.00s  p95=2.00s" in out
+    assert "Citation coverage: 100.0%" in out
+    assert "Retry rate: 0.0%" in out
+
+
+def test_main_defaults_model_to_config(tmp_path, monkeypatch, capsys):
+    log_path = _write_log(
+        tmp_path,
+        [
+            {
+                "total_latency_s": 1.0,
+                "tokens": {"prompt": 10, "completion": 10},
+                "critique_verdicts": ["fail (declined)"],
+                "retried": True,
+            }
+        ],
+    )
+    monkeypatch.setattr("app.config.GEMINI_MODEL", "configured-model")
+    monkeypatch.setattr("sys.argv", ["trace_report", "--log", str(log_path)])
+
+    trace_report.main()
+
+    out = capsys.readouterr().out
+    assert "Model (for cost lookup): configured-model" in out
+    assert "Failure rate: 100.0%" in out
+    assert "Retry rate: 100.0%" in out
+
+
+def test_main_reports_when_log_is_missing(tmp_path, monkeypatch, capsys):
+    missing = tmp_path / "nope.log"
+    monkeypatch.setattr("sys.argv", ["trace_report", "--log", str(missing)])
+
+    trace_report.main()
+
+    assert "No trace records found" in capsys.readouterr().out

@@ -41,6 +41,22 @@ class ChatState(TypedDict):
     needs_retry: bool
 
 
+def initial_chat_state(tenant_id: int, question: str) -> ChatState:
+    """The starting state every entry point feeds the graph -- `run_chat_workflow`
+    here and `tracing.trace_turn`, which streams the same graph."""
+    return {
+        "tenant_id": tenant_id,
+        "question": question,
+        "query": question,
+        "category": "",
+        "search_text": "",
+        "chunks": [],
+        "answer": "",
+        "retry_used": False,
+        "needs_retry": False,
+    }
+
+
 def _parse_classify_response(content: str | None) -> str | None:
     """Returns the validated category, or None if content isn't valid JSON
     matching the schema."""
@@ -188,17 +204,5 @@ _graph = _build_graph()
 
 
 def run_chat_workflow(tenant_id: int, question: str) -> str:
-    result = _graph.invoke(
-        {
-            "tenant_id": tenant_id,
-            "question": question,
-            "query": question,
-            "category": "",
-            "search_text": "",
-            "chunks": [],
-            "answer": "",
-            "retry_used": False,
-            "needs_retry": False,
-        }
-    )
+    result = _graph.invoke(initial_chat_state(tenant_id, question))
     return result["answer"]

@@ -89,6 +89,11 @@ OAuth login flow.
 New backend concerns should generally follow this pattern: a focused module in
 `app/`, wired into `main.py`, with its config constants added to `config.py`
 alongside the existing ones rather than scattered as raw `os.environ` reads.
+Cross-cutting helpers already factored out and worth reusing instead of
+re-rolling: `db.session_scope()` (session that's always closed),
+`tenants.get_tenant_by_slug`/`lookup_tenant_id` (slug -> tenant), and
+`trace_log.LOG_PATH`/`load_records` (the chat trace log's location and JSONL
+reader, shared by `tracing.py`, `trace_chat.py`, and `trace_report.py`).
 
 **Auth: session-cookie based, not token-based.** Google OAuth 2.0 Authorization
 Code flow (via Authlib) gates the entire app — every route except `/health` and

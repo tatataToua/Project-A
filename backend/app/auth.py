@@ -62,9 +62,7 @@ async def auth_callback(request: Request):
 
 @router.get("/auth/me")
 def me(request: Request):
-    user = request.session.get("user")
-    if not user or user.get("exp", 0) < time.time():
-        raise HTTPException(status_code=401, detail="Not authenticated")
+    user = require_user(request)
     return {"email": user["email"], "name": user["name"]}
 
 

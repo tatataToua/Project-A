@@ -5,9 +5,10 @@ from sqlalchemy import delete
 
 from app.chunking import chunk_markdown
 from app.config import CONTENT_DIR
-from app.db import SessionLocal
+from app.db import session_scope
 from app.embeddings import embed_texts
 from app.models import EmbeddingChunk, Tenant, create_tables
+from app.tenants import get_tenant_by_slug
 
 
 def tenant_content_dir(slug: str) -> Path:
@@ -15,7 +16,7 @@ def tenant_content_dir(slug: str) -> Path:
 
 
 def get_or_create_tenant(session, slug: str) -> Tenant:
-    tenant = session.query(Tenant).filter_by(slug=slug).one_or_none()
+    tenant = get_tenant_by_slug(session, slug)
     if tenant is None:
         tenant = Tenant(slug=slug, name=slug, status="active")
         session.add(tenant)
@@ -26,8 +27,7 @@ def get_or_create_tenant(session, slug: str) -> Tenant:
 def ingest_tenant(slug: str) -> int:
     create_tables()
     content_dir = tenant_content_dir(slug)
-    session = SessionLocal()
-    try:
+    with session_scope() as session:
         tenant = get_or_create_tenant(session, slug)
         session.execute(delete(EmbeddingChunk).where(EmbeddingChunk.tenant_id == tenant.id))
 
@@ -56,8 +56,6 @@ def ingest_tenant(slug: str) -> int:
             )
         session.commit()
         return len(all_chunks)
-    finally:
-        session.close()
 
 
 if __name__ == "__main__":

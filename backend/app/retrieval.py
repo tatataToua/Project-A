@@ -3,7 +3,7 @@ import logging
 from sqlalchemy import select, text
 
 from app.config import RETRIEVAL_OVERFETCH_K, RETRIEVAL_TOP_K
-from app.db import SessionLocal
+from app.db import session_scope
 from app.models import EmbeddingChunk
 from app.reranking import rerank_chunks
 
@@ -67,8 +67,7 @@ def retrieve_chunks(
     tenant_id -- the tenant isolation boundary. Returns (source_file, chunk_text)
     tuples so callers can attribute context to a source."""
     overfetch_k = max(overfetch_k, k)
-    session = SessionLocal()
-    try:
+    with session_scope() as session:
         vector_hits = _vector_search(session, tenant_id, query_embedding, overfetch_k)
         fulltext_hits = _fulltext_search(session, tenant_id, query_text, overfetch_k)
         fused = _reciprocal_rank_fusion([vector_hits, fulltext_hits], k=overfetch_k)
@@ -77,5 +76,3 @@ def retrieve_chunks(
         except Exception:
             logger.exception("Reranker failed; falling back to un-reranked hybrid results")
             return [(source_file, chunk_text) for _chunk_id, source_file, chunk_text in fused[:k]]
-    finally:
-        session.close()

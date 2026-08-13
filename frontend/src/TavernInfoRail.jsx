@@ -1,4 +1,5 @@
-import { ClockIcon, FlameIcon, MapPinIcon, PhoneIcon } from "./icons.jsx";
+import StatusPill from "./StatusPill.jsx";
+import { FlameIcon, MapPinIcon, PhoneIcon } from "./icons.jsx";
 import {
   TENANT_ADDRESS,
   TENANT_ATMOSPHERE,
@@ -7,28 +8,24 @@ import {
   TENANT_PHONE_HREF,
   formatHoursLabel,
   getTodayRow,
-  isOpenNow,
 } from "./tenant.js";
 
-export default function TavernInfoRail({ variant = "rail" }) {
-  const open = isOpenNow();
-  const today = getTodayRow();
-
-  const statusPill = (
-    <span className={`status-pill ${open ? "status-pill--open" : "status-pill--closed"}`}>
-      <ClockIcon size={13} />
-      {open ? "Open now" : "Closed now"}
-      {today ? ` · ${formatHoursLabel(today)}` : ""}
-    </span>
+function AddressLine() {
+  return (
+    <p className="tavern-info__address">
+      <MapPinIcon size={13} /> {TENANT_ADDRESS.line1}, {TENANT_ADDRESS.cityStateZip}
+    </p>
   );
+}
+
+export default function TavernInfoRail({ variant = "rail" }) {
+  const today = getTodayRow();
 
   if (variant === "hero") {
     return (
       <div className="tavern-info tavern-info--hero">
-        {statusPill}
-        <p className="tavern-info__address">
-          <MapPinIcon size={13} /> {TENANT_ADDRESS.line1}, {TENANT_ADDRESS.cityStateZip}
-        </p>
+        <StatusPill />
+        <AddressLine />
       </div>
     );
   }
@@ -40,7 +37,7 @@ export default function TavernInfoRail({ variant = "rail" }) {
         <p className="tavern-info__blurb">
           <FlameIcon size={14} /> {TENANT_ATMOSPHERE}
         </p>
-        {statusPill}
+        <StatusPill />
         <table className="tavern-info__hours">
           <tbody>
             {TENANT_HOURS.map((row) => (
@@ -54,9 +51,7 @@ export default function TavernInfoRail({ variant = "rail" }) {
             ))}
           </tbody>
         </table>
-        <p className="tavern-info__address">
-          <MapPinIcon size={13} /> {TENANT_ADDRESS.line1}, {TENANT_ADDRESS.cityStateZip}
-        </p>
+        <AddressLine />
         <a className="tavern-info__phone" href={TENANT_PHONE_HREF}>
           <PhoneIcon size={13} /> {TENANT_PHONE}
         </a>

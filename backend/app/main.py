@@ -14,8 +14,9 @@ from app.config import (
     SESSION_MAX_AGE_SECONDS,
     SESSION_SECRET,
 )
-from app.db import SessionLocal
-from app.models import EmbeddingChunk, Tenant, create_tables
+from app.db import session_scope
+from app.models import EmbeddingChunk, create_tables
+from app.tenants import get_tenant_by_slug
 
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -63,9 +64,8 @@ def chat(
     user: dict = Depends(auth.require_user),
     _: None = Depends(ratelimit.enforce_chat_rate_limit),
 ) -> ChatResponse:
-    session = SessionLocal()
-    try:
-        tenant = session.scalar(select(Tenant).where(Tenant.slug == tenant_slug))
+    with session_scope() as session:
+        tenant = get_tenant_by_slug(session, tenant_slug)
         if tenant is None:
             raise HTTPException(status_code=404, detail="Unknown tenant.")
 
@@ -75,8 +75,6 @@ def chat(
         if has_content is None:
             return ChatResponse(reply="I don't have any information loaded yet -- check back soon.")
         tenant_id = tenant.id
-    finally:
-        session.close()
 
     try:
         answer, _ = tracing.trace_turn(tenant_id, req.message)

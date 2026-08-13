@@ -45,10 +45,9 @@ from ragas import RunConfig, evaluate
 from ragas.metrics import faithfulness
 
 from app.config import CONTENT_DIR, GEMINI_API_KEY, GEMINI_BASE_URL, GEMINI_MODEL
-from app.db import SessionLocal
 from app.embeddings import embed_texts
-from app.models import Tenant
 from app.retrieval import retrieve_chunks
+from app.tenants import lookup_tenant_id
 from app.workflow import run_chat_workflow
 
 FAITHFULNESS_THRESHOLD = 0.7
@@ -74,19 +73,19 @@ def load_golden_set(tenant_slug: str) -> list[dict]:
 
 
 def build_dataset(tenant_slug: str, golden_set: list[dict]) -> Dataset:
-    session = SessionLocal()
-    try:
-        tenant = session.query(Tenant).filter_by(slug=tenant_slug).one()
-    finally:
-        session.close()
+    tenant_id = lookup_tenant_id(tenant_slug)
+    if tenant_id is None:
+        raise SystemExit(
+            f"Tenant '{tenant_slug}' not found -- run `python -m app.ingest {tenant_slug}` first."
+        )
 
     questions, answers, contexts, references = [], [], [], []
     for i, item in enumerate(golden_set, start=1):
         question = item["question"]
         print(f"  [{i}/{len(golden_set)}] {question}")
         [query_vector] = embed_texts([question])
-        retrieved = retrieve_chunks(tenant.id, question, query_vector)
-        answer = run_chat_workflow(tenant.id, question)
+        retrieved = retrieve_chunks(tenant_id, question, query_vector)
+        answer = run_chat_workflow(tenant_id, question)
 
         # golden_qa.yaml is human-authored YAML; a bare scalar like
         # `expected_answer: 2015.` parses as a Python float, not a string

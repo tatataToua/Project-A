@@ -15,16 +15,10 @@ import time
 
 from openai import OpenAI
 
+from bench_common import SAMPLE_QUESTIONS as PROMPTS
+
 OLLAMA_BASE_URL = "http://localhost:11434/v1"
 MODELS = ["qwen2.5:7b-instruct", "llama3.2", "mistral:7b"]
-
-PROMPTS = [
-    "What are your hours on Saturday?",
-    "Do you have vegan options on the menu?",
-    "What's the story behind the name Two Owls Tavern?",
-    "Can I book a table for 10 people?",
-    "What's your most popular dish?",
-]
 
 
 def ensure_model_pulled(model: str) -> None:

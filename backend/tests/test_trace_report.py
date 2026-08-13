@@ -78,3 +78,13 @@ def test_load_records_reads_jsonl(tmp_path):
 
 def test_load_records_missing_file_returns_empty(tmp_path):
     assert trace_report.load_records(tmp_path / "does-not-exist.log") == []
+
+
+def test_load_records_skips_malformed_lines(tmp_path, capsys):
+    log_path = tmp_path / "chat_trace.log"
+    log_path.write_text('{"question": "a"}\n{"question": "b"\n{"question": "c"}\n', encoding="utf-8")
+
+    records = trace_report.load_records(log_path)
+
+    assert [r["question"] for r in records] == ["a", "c"]
+    assert "Skipping unparseable trace record" in capsys.readouterr().out

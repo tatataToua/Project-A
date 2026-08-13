@@ -65,16 +65,28 @@ export default function ChatWidget() {
         window.location.reload();
         return;
       }
-      const data = await res.json();
+      // An error response from a proxy or crashed worker may not be JSON at all.
+      const data = await res.json().catch((err) => {
+        console.error(`Non-JSON response from /chat (status ${res.status})`, err);
+        return null;
+      });
       if (!res.ok) {
         setMessages((prev) => [
           ...prev,
-          { role: "assistant", content: data.detail || "Something went wrong.", error: true },
+          {
+            role: "assistant",
+            content: data?.detail || `Something went wrong (error ${res.status}).`,
+            error: true,
+          },
         ]);
         return;
       }
+      if (!data || typeof data.reply !== "string") {
+        throw new Error("Malformed /chat response");
+      }
       setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
     } catch (err) {
+      console.error("Chat request failed", err);
       setMessages((prev) => [
         ...prev,
         {

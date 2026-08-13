@@ -2,6 +2,7 @@
 import time
 
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import OperationalError
 
 from app import main
 from app.auth import require_user
@@ -78,5 +79,55 @@ def test_tenant_with_content_returns_workflow_answer(monkeypatch):
         resp = _client().post(f"/chat/{TENANT_WITH_CONTENT}", json={"message": "hi"})
         assert resp.status_code == 200
         assert resp.json()["reply"] == "mocked answer"
+    finally:
+        _cleanup()
+
+
+def test_database_failure_returns_503(monkeypatch):
+    def failing_session_factory():
+        class _FailingSession:
+            def scalar(self, *_args, **_kwargs):
+                raise OperationalError("SELECT 1", {}, Exception("connection refused"))
+
+            def close(self):
+                pass
+
+        return _FailingSession()
+
+    monkeypatch.setattr(main, "SessionLocal", failing_session_factory)
+
+    resp = _client().post("/chat/any-tenant", json={"message": "hi"})
+
+    assert resp.status_code == 503
+    assert "temporarily unavailable" in resp.json()["detail"]
+
+
+def test_unexpected_workflow_error_returns_generic_500(monkeypatch):
+    _cleanup()
+    create_tables()
+    session = SessionLocal()
+    try:
+        tenant = Tenant(slug=TENANT_WITH_CONTENT, name="Has Content", status="active")
+        session.add(tenant)
+        session.flush()
+        session.add(
+            EmbeddingChunk(
+                tenant_id=tenant.id, source_file="bio.md", chunk_index=0,
+                chunk_text="chunk", embedding=[0.0] * 768,
+            )
+        )
+        session.commit()
+    finally:
+        session.close()
+
+    def boom(tenant_id, question):
+        raise RuntimeError("secret internal detail")
+
+    monkeypatch.setattr(main.tracing, "trace_turn", boom)
+
+    try:
+        resp = _client().post(f"/chat/{TENANT_WITH_CONTENT}", json={"message": "hi"})
+        assert resp.status_code == 500
+        assert resp.json()["detail"] == "Something went wrong handling that message."
     finally:
         _cleanup()

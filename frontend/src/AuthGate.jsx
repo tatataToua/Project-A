@@ -25,6 +25,7 @@ export default function AuthGate() {
   const [status, setStatus] = useState("loading"); // loading | signed-out | signed-in
   const [user, setUser] = useState(null);
   const [loginError, setLoginError] = useState(false);
+  const [backendError, setBackendError] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -34,19 +35,37 @@ export default function AuthGate() {
     }
 
     fetch("/auth/me", { credentials: "include" })
-      .then((res) => {
-        if (!res.ok) throw new Error("not authenticated");
+      .then(async (res) => {
+        if (res.status === 401) return null;
+        if (!res.ok) throw new Error(`/auth/me failed with ${res.status}`);
         return res.json();
       })
       .then((data) => {
+        if (!data) {
+          setStatus("signed-out");
+          return;
+        }
         setUser(data);
         setStatus("signed-in");
       })
-      .catch(() => setStatus("signed-out"));
+      .catch((err) => {
+        // A backend outage isn't the same as being signed out -- say so instead
+        // of silently showing the sign-in screen and looping the user forever.
+        console.error("Could not check the current session", err);
+        setBackendError(true);
+        setStatus("signed-out");
+      });
   }, []);
 
   async function logout() {
-    await fetch("/auth/logout", { method: "POST", credentials: "include" });
+    try {
+      const res = await fetch("/auth/logout", { method: "POST", credentials: "include" });
+      if (!res.ok) throw new Error(`/auth/logout failed with ${res.status}`);
+    } catch (err) {
+      // Reload regardless: the cookie may already be gone, and a stuck page is
+      // worse than an extra sign-in prompt. The cause still gets reported.
+      console.error("Logout request failed", err);
+    }
     window.location.reload();
   }
 
@@ -61,6 +80,11 @@ export default function AuthGate() {
           <p className="signin__desc">{TENANT_TAGLINE}</p>
           <TavernInfoRail variant="hero" />
           {loginError && <div className="alert-banner">Login failed — try again.</div>}
+          {backendError && (
+            <div className="alert-banner">
+              Couldn't reach the server — check your connection and reload.
+            </div>
+          )}
           <a className="google-btn" href="/auth/login">
             <GoogleLogo />
             Sign in with Google

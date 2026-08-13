@@ -1,4 +1,5 @@
 import json
+import logging
 from typing import Literal, TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -10,6 +11,8 @@ from app.embeddings import embed_texts
 from app.instructions import get_custom_instructions
 from app.llm import client as _client
 from app.retrieval import retrieve_chunks
+
+logger = logging.getLogger("askme")
 
 REFUSAL_MESSAGE = "We don't have that information on hand — please ask a staff member directly."
 
@@ -65,12 +68,14 @@ def _classify_node(state: ChatState) -> dict:
         except OpenAIError:
             # Classification only biases the retrieval query -- nothing depends on it,
             # so degrade to the same "general" fallback used for an unusable answer.
+            logger.warning("Classify LLM call failed; falling back to 'general'", exc_info=True)
             return {"category": "general"}
         content = completion.choices[0].message.content
         category = _parse_classify_response(content)
         if category is not None:
             return {"category": category}
         # Invalid output -- retry once with a corrective nudge before falling back.
+        logger.warning("Classifier returned unusable output: %r", content)
         messages = messages + [
             {"role": "assistant", "content": content or ""},
             {
@@ -81,6 +86,7 @@ def _classify_node(state: ChatState) -> dict:
                 ),
             },
         ]
+    logger.warning("Classifier never returned a valid category; falling back to 'general'")
     return {"category": "general"}
 
 
@@ -150,6 +156,7 @@ def _critique_node(state: ChatState) -> dict:
         )
     except OpenAIError:
         # We already have a usable answer -- skip enforcement rather than fail the request.
+        logger.warning("Critique LLM call failed; returning the answer unchecked", exc_info=True)
         return {"needs_retry": False}
     verdict = (completion.choices[0].message.content or "pass").strip().lower()
     if verdict.startswith("fail"):

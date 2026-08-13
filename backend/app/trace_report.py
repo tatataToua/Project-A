@@ -30,13 +30,20 @@ def _percentile(values: list[float], pct: float) -> float:
 
 
 def load_records(log_path: Path) -> list[dict]:
+    """Parse the JSONL trace log, skipping (and reporting) malformed lines --
+    the app appends to this file while it runs, so a reader can encounter a
+    half-written last line; one bad line shouldn't discard the whole report."""
     if not log_path.exists():
         return []
     records = []
-    for line in log_path.read_text(encoding="utf-8").splitlines():
+    for lineno, line in enumerate(log_path.read_text(encoding="utf-8").splitlines(), start=1):
         line = line.strip()
-        if line:
+        if not line:
+            continue
+        try:
             records.append(json.loads(line))
+        except json.JSONDecodeError:
+            print(f"Skipping unparseable trace record at {log_path}:{lineno}")
     return records
 
 

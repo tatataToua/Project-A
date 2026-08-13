@@ -11,12 +11,15 @@ of the plain `.invoke()` the workflow itself uses elsewhere.
 """
 import functools
 import json
+import logging
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Optional
 
 from app.workflow import _graph
+
+logger = logging.getLogger("askme")
 
 LOG_PATH = Path(__file__).resolve().parent.parent / "logs" / "chat_trace.log"
 
@@ -91,6 +94,25 @@ def _full_text_for_node(node_name: str, delta: dict, preview: str) -> str:
     if node_name == "retrieve":
         return f'{preview} (embedded query: "{delta.get("search_text", "")}")'
     return preview
+
+
+def read_records(log_path: Path = LOG_PATH) -> list[dict]:
+    """Parse the JSONL trace log, skipping (and logging) malformed lines.
+
+    The log is appended to concurrently by the running app, so a reader can see
+    a half-written final line -- one corrupt line shouldn't lose the whole log."""
+    if not log_path.exists():
+        return []
+    records = []
+    for lineno, line in enumerate(log_path.read_text(encoding="utf-8").splitlines(), start=1):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            records.append(json.loads(line))
+        except json.JSONDecodeError:
+            logger.warning("Skipping unparseable trace record at %s:%d", log_path, lineno)
+    return records
 
 
 NodeCallback = Callable[[str, float, int, int, str], None]
@@ -178,8 +200,13 @@ def trace_turn(tenant_id: int, question: str, on_node: Optional[NodeCallback] = 
         "events": events,
     }
 
-    LOG_PATH.parent.mkdir(exist_ok=True)
-    with LOG_PATH.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(record) + "\n")
+    try:
+        LOG_PATH.parent.mkdir(exist_ok=True)
+        with LOG_PATH.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(record) + "\n")
+    except OSError:
+        # Telemetry is best-effort: the caller already has a real answer, so a
+        # failed log write must not turn a served turn into a failed request.
+        logger.warning("Could not append trace record to %s", LOG_PATH, exc_info=True)
 
     return answer, record

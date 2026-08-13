@@ -75,6 +75,14 @@ def chat(
         if has_content is None:
             return ChatResponse(reply="I don't have any information loaded yet -- check back soon.")
         tenant_id = tenant.id
+    except SQLAlchemyError:
+        # Postgres unreachable or the schema is missing -- a dependency outage,
+        # not an unexplained 500 with a stack trace in the response.
+        logger.exception("Tenant lookup failed for slug=%s", tenant_slug)
+        raise HTTPException(
+            status_code=503,
+            detail="The assistant is temporarily unavailable — try again shortly.",
+        )
     finally:
         session.close()
 
@@ -88,5 +96,11 @@ def chat(
             status_code=502,
             detail="Could not reach the assistant right now — try again shortly.",
         )
+    except Exception:
+        # Anything else is a bug rather than an outage: log it with the full
+        # traceback (so it is never silently lost) and return a generic 500
+        # instead of leaking internals to the browser.
+        logger.exception("Unexpected chat failure for user=%s", user["email"])
+        raise HTTPException(status_code=500, detail="Something went wrong handling that message.")
 
     return ChatResponse(reply=answer)

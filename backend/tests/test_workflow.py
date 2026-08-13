@@ -202,3 +202,35 @@ def test_generate_omits_instructions_block_when_none_configured(monkeypatch):
 
     system_prompt = fake_chat_api.call_kwargs[1]["messages"][0]["content"]
     assert "ADDITIONAL OPERATOR INSTRUCTIONS" not in system_prompt
+
+
+def test_critique_failure_keeps_the_answer_and_logs(monkeypatch, caplog):
+    # order: classify, generate, critique(raises)
+    _patch_common(
+        monkeypatch, ['{"category": "general"}', "first answer", OpenAIError("critique down")]
+    )
+
+    with caplog.at_level("WARNING", logger="askme"):
+        answer = workflow.run_chat_workflow(tenant_id=1, question="What do you do?")
+
+    assert answer == "first answer"
+    assert "Critique LLM call failed" in caplog.text
+
+
+def test_classify_failure_is_logged(monkeypatch, caplog):
+    _patch_common(monkeypatch, [OpenAIError("classify down")])
+
+    with caplog.at_level("WARNING", logger="askme"):
+        workflow._classify_node({"question": "anything"})
+
+    assert "Classify LLM call failed" in caplog.text
+
+
+def test_unusable_classifier_output_is_logged(monkeypatch, caplog):
+    _patch_common(monkeypatch, ["not valid json", "still not valid json"])
+
+    with caplog.at_level("WARNING", logger="askme"):
+        assert workflow._classify_node({"question": "anything"}) == {"category": "general"}
+
+    assert "unusable output" in caplog.text
+    assert "never returned a valid category" in caplog.text

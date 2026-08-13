@@ -21,7 +21,7 @@ from pathlib import Path
 
 from app.db import SessionLocal
 from app.models import Tenant
-from app.tracing import LOG_PATH, instrument_client, trace_turn
+from app.tracing import LOG_PATH, instrument_client, read_records, trace_turn
 
 CSV_FIELDNAMES = [
     "timestamp",
@@ -94,7 +94,13 @@ def _watch() -> None:
                 line = line.strip()
                 if not line:
                     continue
-                print(_format_logged_turn(json.loads(line)))
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    # A turn still being appended, or a corrupt line -- keep watching.
+                    print("  (skipped an unparseable trace line)")
+                    continue
+                print(_format_logged_turn(record))
         except KeyboardInterrupt:
             print()
 
@@ -103,7 +109,7 @@ def _export_csv(output_path: Path | None) -> None:
     if not LOG_PATH.exists():
         print(f"No trace log yet at {LOG_PATH} -- chat with the app or run a turn first.")
         return
-    rows = [json.loads(line) for line in LOG_PATH.read_text(encoding="utf-8").splitlines() if line.strip()]
+    rows = read_records(LOG_PATH)
     if not rows:
         print("Trace log is empty.")
         return
@@ -140,7 +146,7 @@ def _print_stats() -> None:
     if not LOG_PATH.exists():
         print(f"No trace log yet at {LOG_PATH} -- chat with the app or run a turn first.")
         return
-    rows = [json.loads(line) for line in LOG_PATH.read_text(encoding="utf-8").splitlines() if line.strip()]
+    rows = read_records(LOG_PATH)
     if not rows:
         print("Trace log is empty.")
         return

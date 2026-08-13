@@ -8,4 +8,11 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
         input=texts,
         dimensions=EMBEDDING_DIMENSIONS,
     )
-    return [item.embedding for item in response.data]
+    vectors = [item.embedding for item in response.data]
+    # A short response would otherwise silently misalign vectors with their
+    # texts (zip truncates) or blow up with an opaque unpacking error further up.
+    if len(vectors) != len(texts):
+        raise ValueError(
+            f"Embedding provider returned {len(vectors)} vectors for {len(texts)} inputs"
+        )
+    return vectors

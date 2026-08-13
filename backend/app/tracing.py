@@ -13,15 +13,24 @@ import functools
 import json
 import time
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Callable, Optional
 
-from app.workflow import _graph
-
-LOG_PATH = Path(__file__).resolve().parent.parent / "logs" / "chat_trace.log"
+from app.trace_log import LOG_PATH
+from app.workflow import _graph, initial_chat_state
 
 _usage_buffer: list[dict] = []
 _instrumented = False
+
+
+def drain_usage(kind: str | None = None) -> list[dict]:
+    """Take and clear the token usage recorded since the last drain. Each entry
+    is {"kind": "chat"|"embedding", "prompt_tokens", "completion_tokens"};
+    pass `kind` to keep only calls of that kind (the rest are still cleared)."""
+    usage = list(_usage_buffer)
+    _usage_buffer.clear()
+    if kind is None:
+        return usage
+    return [u for u in usage if u["kind"] == kind]
 
 
 def instrument_client() -> None:
@@ -37,25 +46,26 @@ def instrument_client() -> None:
     orig_chat_create = client.chat.completions.create
     orig_embed_create = client.embeddings.create
 
+    def record_usage(kind: str, response, count_completion: bool) -> None:
+        usage = getattr(response, "usage", None)
+        _usage_buffer.append(
+            {
+                "kind": kind,
+                "prompt_tokens": getattr(usage, "prompt_tokens", 0) or 0,
+                "completion_tokens": (getattr(usage, "completion_tokens", 0) or 0) if count_completion else 0,
+            }
+        )
+
     @functools.wraps(orig_chat_create)
     def chat_create(*args, **kwargs):
         completion = orig_chat_create(*args, **kwargs)
-        usage = getattr(completion, "usage", None)
-        _usage_buffer.append(
-            {
-                "prompt_tokens": getattr(usage, "prompt_tokens", 0) or 0,
-                "completion_tokens": getattr(usage, "completion_tokens", 0) or 0,
-            }
-        )
+        record_usage("chat", completion, count_completion=True)
         return completion
 
     @functools.wraps(orig_embed_create)
     def embed_create(*args, **kwargs):
         response = orig_embed_create(*args, **kwargs)
-        usage = getattr(response, "usage", None)
-        _usage_buffer.append(
-            {"prompt_tokens": getattr(usage, "prompt_tokens", 0) or 0, "completion_tokens": 0}
-        )
+        record_usage("embedding", response, count_completion=False)
         return response
 
     client.chat.completions.create = chat_create
@@ -102,17 +112,7 @@ def trace_turn(tenant_id: int, question: str, on_node: Optional[NodeCallback] = 
     returns (answer, record). If `on_node` is given, it's called after each
     node completes with (node_name, elapsed_seconds, prompt_tokens,
     completion_tokens, preview_text) -- for live printing."""
-    state = {
-        "tenant_id": tenant_id,
-        "question": question,
-        "query": question,
-        "category": "",
-        "search_text": "",
-        "chunks": [],
-        "answer": "",
-        "retry_used": False,
-        "needs_retry": False,
-    }
+    state = initial_chat_state(tenant_id, question)
 
     turn_start = time.perf_counter()
     last_ts = turn_start
@@ -128,8 +128,7 @@ def trace_turn(tenant_id: int, question: str, on_node: Optional[NodeCallback] = 
             elapsed = now - last_ts
             last_ts = now
 
-            tokens_this_node = list(_usage_buffer)
-            _usage_buffer.clear()
+            tokens_this_node = drain_usage()
             prompt_tok = sum(u["prompt_tokens"] for u in tokens_this_node)
             completion_tok = sum(u["completion_tokens"] for u in tokens_this_node)
 

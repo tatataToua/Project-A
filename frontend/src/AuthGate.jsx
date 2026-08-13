@@ -1,24 +1,13 @@
 import { useEffect, useState } from "react";
 import ChatWidget from "./ChatWidget.jsx";
+import StatusPill from "./StatusPill.jsx";
 import TavernInfoRail from "./TavernInfoRail.jsx";
-import { ClockIcon, GoogleLogo, LogoutIcon, OwlMark } from "./icons.jsx";
-import { TENANT_NAME, TENANT_TAGLINE, formatHoursLabel, getTodayRow, isOpenNow } from "./tenant.js";
+import { GoogleLogo, LogoutIcon, OwlMark } from "./icons.jsx";
+import { TENANT_NAME, TENANT_TAGLINE } from "./tenant.js";
 
 function initials(name, email) {
   const source = name || email || "?";
   return source.trim().charAt(0).toUpperCase();
-}
-
-function TopbarStatus() {
-  const open = isOpenNow();
-  const today = getTodayRow();
-  return (
-    <span className={`status-pill ${open ? "status-pill--open" : "status-pill--closed"}`}>
-      <ClockIcon size={13} />
-      {open ? "Open now" : "Closed now"}
-      {today ? ` · ${formatHoursLabel(today)}` : ""}
-    </span>
-  );
 }
 
 export default function AuthGate() {
@@ -77,7 +66,7 @@ export default function AuthGate() {
           <OwlMark size={20} className="topbar__mark" />
           <p className="wordmark">Ask Me</p>
           <span className="tenant-badge">{TENANT_NAME}</span>
-          <TopbarStatus />
+          <StatusPill />
         </div>
         <div className="topbar__user">
           <span className="avatar">{initials(user?.name, user?.email)}</span>

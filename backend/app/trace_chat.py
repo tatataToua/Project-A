@@ -19,9 +19,9 @@ import json
 import time
 from pathlib import Path
 
-from app.db import SessionLocal
-from app.models import Tenant
-from app.tracing import LOG_PATH, instrument_client, trace_turn
+from app.tenants import lookup_tenant_id
+from app.trace_log import LOG_PATH, load_records
+from app.tracing import instrument_client, trace_turn
 
 CSV_FIELDNAMES = [
     "timestamp",
@@ -99,13 +99,21 @@ def _watch() -> None:
             print()
 
 
-def _export_csv(output_path: Path | None) -> None:
+def _logged_turns() -> list[dict]:
+    """Records from the trace log, or an empty list after explaining why there
+    are none."""
     if not LOG_PATH.exists():
         print(f"No trace log yet at {LOG_PATH} -- chat with the app or run a turn first.")
-        return
-    rows = [json.loads(line) for line in LOG_PATH.read_text(encoding="utf-8").splitlines() if line.strip()]
+        return []
+    rows = load_records(LOG_PATH)
     if not rows:
         print("Trace log is empty.")
+    return rows
+
+
+def _export_csv(output_path: Path | None) -> None:
+    rows = _logged_turns()
+    if not rows:
         return
 
     out_path = output_path or (LOG_PATH.parent / "chat_trace.csv")
@@ -137,12 +145,8 @@ def _export_csv(output_path: Path | None) -> None:
 
 
 def _print_stats() -> None:
-    if not LOG_PATH.exists():
-        print(f"No trace log yet at {LOG_PATH} -- chat with the app or run a turn first.")
-        return
-    rows = [json.loads(line) for line in LOG_PATH.read_text(encoding="utf-8").splitlines() if line.strip()]
+    rows = _logged_turns()
     if not rows:
-        print("Trace log is empty.")
         return
 
     n = len(rows)
@@ -189,12 +193,8 @@ def main() -> None:
         _watch()
         return
 
-    session = SessionLocal()
-    try:
-        tenant = session.query(Tenant).filter_by(slug=args.tenant_slug).one_or_none()
-    finally:
-        session.close()
-    if tenant is None:
+    tenant_id = lookup_tenant_id(args.tenant_slug)
+    if tenant_id is None:
         print(f"No tenant '{args.tenant_slug}' found. Run `python -m app.ingest {args.tenant_slug}` first.")
         return
 
@@ -211,7 +211,7 @@ def main() -> None:
             continue
         if question.lower() in ("exit", "quit"):
             break
-        _run_turn(tenant.id, question)
+        _run_turn(tenant_id, question)
 
 
 if __name__ == "__main__":

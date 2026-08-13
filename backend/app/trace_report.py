@@ -6,11 +6,11 @@ Usage (from `backend/`):
     .venv\\Scripts\\python.exe -m app.trace_report [--log PATH] [--model NAME]
 """
 import argparse
-import json
 import statistics
 from pathlib import Path
 
-DEFAULT_LOG_PATH = Path(__file__).resolve().parent.parent / "logs" / "chat_trace.log"
+from app.trace_log import LOG_PATH as DEFAULT_LOG_PATH
+from app.trace_log import load_records
 
 # Approximate list prices, USD per 1K tokens, as of this writing. A model not
 # listed here (e.g. any local Ollama model) is treated as $0/token -- update
@@ -27,17 +27,6 @@ def _percentile(values: list[float], pct: float) -> float:
     s = sorted(values)
     idx = min(len(s) - 1, round(pct / 100 * (len(s) - 1)))
     return s[idx]
-
-
-def load_records(log_path: Path) -> list[dict]:
-    if not log_path.exists():
-        return []
-    records = []
-    for line in log_path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if line:
-            records.append(json.loads(line))
-    return records
 
 
 def estimate_cost(record: dict, model: str) -> float:

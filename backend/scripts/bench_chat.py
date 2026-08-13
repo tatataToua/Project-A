@@ -22,18 +22,10 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.config import GEMINI_BASE_URL, GEMINI_EMBEDDING_MODEL, GEMINI_MODEL
-from app.db import SessionLocal
-from app.models import Tenant
-from app import llm as llm_module
+from app.tenants import lookup_tenant_id
+from app.tracing import drain_usage, instrument_client
 from app.workflow import run_chat_workflow
-
-QUESTIONS = [
-    "What are your hours on Saturday?",
-    "Do you have vegan options on the menu?",
-    "What's the story behind the name Two Owls Tavern?",
-    "Can I book a table for 10 people?",
-    "What's your most popular dish?",
-]
+from bench_common import SAMPLE_QUESTIONS
 
 TENANT_SLUG = "two-owls-tavern"
 
@@ -54,44 +46,30 @@ def run_tests() -> tuple[int, float]:
 
 
 def run_chat_benchmark() -> list[dict]:
-    usage_log = []
-    original_create = llm_module.client.chat.completions.create
+    instrument_client()
 
-    def tracking_create(*args, **kwargs):
-        response = original_create(*args, **kwargs)
-        if response.usage:
-            usage_log.append(
-                {
-                    "prompt_tokens": response.usage.prompt_tokens,
-                    "completion_tokens": response.usage.completion_tokens,
-                    "total_tokens": response.usage.total_tokens,
-                }
-            )
-        return response
-
-    llm_module.client.chat.completions.create = tracking_create
-
-    db = SessionLocal()
-    tenant = db.query(Tenant).filter(Tenant.slug == TENANT_SLUG).first()
-    db.close()
-    if tenant is None:
+    tenant_id = lookup_tenant_id(TENANT_SLUG)
+    if tenant_id is None:
         raise SystemExit(
             f"Tenant '{TENANT_SLUG}' not found — run "
             f"`python -m app.ingest {TENANT_SLUG}` first."
         )
 
     results = []
-    for question in QUESTIONS:
-        usage_log.clear()
+    for question in SAMPLE_QUESTIONS:
+        drain_usage()  # discard anything recorded before this question
         start = time.perf_counter()
-        answer = run_chat_workflow(tenant.id, question)
+        answer = run_chat_workflow(tenant_id, question)
         elapsed = time.perf_counter() - start
+        # Chat completions only -- the retry heuristic below counts workflow
+        # nodes, not the embedding call retrieval makes.
+        usage_log = drain_usage(kind="chat")
         results.append(
             {
                 "question": question,
                 "elapsed_s": elapsed,
                 "llm_calls": len(usage_log),
-                "total_tokens": sum(u["total_tokens"] for u in usage_log),
+                "total_tokens": sum(u["prompt_tokens"] + u["completion_tokens"] for u in usage_log),
             }
         )
         print(f"  [{elapsed:5.2f}s] calls={len(usage_log)} tokens={results[-1]['total_tokens']:>5}  {question}")
@@ -107,7 +85,7 @@ def main():
     passed, test_elapsed = run_tests()
     print(f"  {passed} passed in {test_elapsed:.2f}s\n")
 
-    print(f"Running {len(QUESTIONS)} sample chat queries against tenant '{TENANT_SLUG}'...")
+    print(f"Running {len(SAMPLE_QUESTIONS)} sample chat queries against tenant '{TENANT_SLUG}'...")
     results = run_chat_benchmark()
 
     latencies = [r["elapsed_s"] for r in results]

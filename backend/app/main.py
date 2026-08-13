@@ -1,15 +1,17 @@
 import logging
 from contextlib import asynccontextmanager
+from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Path
 from openai import OpenAIError
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.middleware.sessions import SessionMiddleware
 
 from app import auth, ratelimit, tracing
 from app.config import (
+    CHAT_MESSAGE_MAX_LENGTH,
     SESSION_COOKIE_SECURE,
     SESSION_MAX_AGE_SECONDS,
     SESSION_SECRET,
@@ -43,8 +45,21 @@ app.add_middleware(
 app.include_router(auth.router)
 
 
+TENANT_SLUG_PATTERN = r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
+
+
 class ChatRequest(BaseModel):
-    message: str
+    # Bounded because the message goes straight into LLM prompts: an unbounded
+    # one is a per-request token-cost amplifier for any logged-in user.
+    message: str = Field(min_length=1, max_length=CHAT_MESSAGE_MAX_LENGTH)
+
+    @field_validator("message")
+    @classmethod
+    def _not_blank(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("message must not be blank")
+        return stripped
 
 
 class ChatResponse(BaseModel):
@@ -58,7 +73,7 @@ def health() -> dict:
 
 @app.post("/chat/{tenant_slug}", response_model=ChatResponse)
 def chat(
-    tenant_slug: str,
+    tenant_slug: Annotated[str, Path(pattern=TENANT_SLUG_PATTERN, max_length=64)],
     req: ChatRequest,
     user: dict = Depends(auth.require_user),
     _: None = Depends(ratelimit.enforce_chat_rate_limit),

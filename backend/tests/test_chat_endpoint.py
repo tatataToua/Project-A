@@ -37,6 +37,24 @@ def test_unknown_tenant_returns_404():
     assert resp.status_code == 404
 
 
+def test_blank_message_is_rejected():
+    resp = _client().post("/chat/does-not-exist", json={"message": "   "})
+    assert resp.status_code == 422
+
+
+def test_oversized_message_is_rejected():
+    long_message = "a" * (main.CHAT_MESSAGE_MAX_LENGTH + 1)
+    resp = _client().post("/chat/does-not-exist", json={"message": long_message})
+    assert resp.status_code == 422
+
+
+def test_malformed_tenant_slug_is_rejected():
+    resp = _client().post("/chat/../../etc/passwd", json={"message": "hi"})
+    assert resp.status_code in (404, 422)
+    resp = _client().post("/chat/Not_A_Slug", json={"message": "hi"})
+    assert resp.status_code == 422
+
+
 def test_tenant_with_no_content_returns_explicit_message(monkeypatch):
     _cleanup()
     create_tables()
